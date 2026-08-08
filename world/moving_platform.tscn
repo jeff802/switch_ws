@@ -1,0 +1,23 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://world/moving_platform.gd" id="1_platform"]
+[ext_resource type="Texture2D" path="res://assets/generated/forest_tileset_16px.png" id="2_tileset"]
+
+[sub_resource type="RectangleShape2D" id="Rectangle_platform"]
+size = Vector2(64, 14)
+
+[node name="MovingPlatform" type="AnimatableBody2D"]
+collision_layer = 1
+collision_mask = 2
+sync_to_physics = true
+script = ExtResource("1_platform")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("Rectangle_platform")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture_filter = 1
+texture = ExtResource("2_tileset")
+region_enabled = true
+region_rect = Rect2(0, 160, 128, 32)
+scale = Vector2(0.5, 0.5)

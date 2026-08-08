@@ -1,0 +1,16 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://world/spike.gd" id="1_spike"]
+
+[sub_resource type="RectangleShape2D" id="Rectangle_spike"]
+size = Vector2(32, 14)
+
+[node name="Spikes" type="Area2D"]
+collision_layer = 16
+collision_mask = 2
+script = ExtResource("1_spike")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+position = Vector2(0, 1)
+shape = SubResource("Rectangle_spike")
+

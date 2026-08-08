@@ -1,0 +1,42 @@
+extends ForestGearLevel
+
+
+func _build_level() -> void:
+	# Mosswood Workshop: safe onboarding, then gaps, hazards and a hidden room.
+	solid_rect(0, 12, 30, 4, 0)
+	solid_rect(33, 12, 23, 4, 0)
+	solid_rect(60, 12, 31, 4, 0)
+	solid_rect(95, 12, 45, 4, 0)
+	solid_rect(8, 9, 7, 1, 1)
+	solid_rect(19, 7, 6, 1, 1)
+	solid_rect(38, 9, 6, 1, 1)
+	solid_rect(49, 7, 5, 1, 1)
+	solid_rect(66, 8, 8, 1, 1)
+	solid_rect(80, 6, 5, 1, 1)
+	solid_rect(103, 9, 7, 1, 1)
+	solid_rect(116, 7, 8, 1, 1)
+	solid_rect(127, 5, 5, 1, 1)
+	add_forest_crate(Vector2(552, 184), 0)
+	add_forest_crate(Vector2(1832, 184), 2)
+	add_forest_decoration(Rect2i(13, 4, 3, 6), Vector2(1265, 94), 0)
+	add_collectible_arc(Vector2(184, 132), 5)
+	add_collectible_arc(Vector2(642, 128), 5)
+	add_collectible_arc(Vector2(1050, 108), 6)
+	add_collectible(Vector2(1300, 74), true)
+	add_enemy(Vector2(355, 174), PooledEnemy.Kind.BEETLE_BOT, 75)
+	add_enemy(Vector2(700, 174), PooledEnemy.Kind.BOUNCECAP, 85)
+	add_enemy(Vector2(1020, 112), PooledEnemy.Kind.GEARWING, 105)
+	add_enemy(Vector2(1760, 174), PooledEnemy.Kind.BEETLE_BOT, 90)
+	add_entity(SPRING_SCENE, Vector2(456, 181), {"launch_strength": 500.0})
+	add_entity(MOVING_PLATFORM_SCENE, Vector2(920, 150), {"offset": Vector2(80, -34), "travel_time": 2.0})
+	add_entity(SPIKE_SCENE, Vector2(1200, 184))
+	add_entity(SPIKE_SCENE, Vector2(1640, 184))
+	add_entity(FALLING_ROCK_SCENE, Vector2(1500, 60))
+	add_entity(CHECKPOINT_SCENE, Vector2(1130, 188))
+	add_entity(HIDDEN_AREA_SCENE, Vector2(2010, 144), {"cover_size": Vector2(100, 72)})
+	add_collectible(Vector2(1985, 152))
+	add_collectible(Vector2(2010, 132), true)
+	add_collectible(Vector2(2035, 152))
+	add_entity(EXIT_SCENE, Vector2(2180, 188), {
+		"unlock_level_id": "cave", "next_scene": "res://levels/cave_level.tscn",
+	})

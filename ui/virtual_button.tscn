@@ -1,0 +1,13 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://ui/virtual_button.gd" id="1_touch"]
+
+[sub_resource type="CircleShape2D" id="Circle_touch"]
+radius = 22.0
+
+[node name="VirtualButton" type="TouchScreenButton"]
+shape = SubResource("Circle_touch")
+shape_centered = true
+passby_press = true
+script = ExtResource("1_touch")
+

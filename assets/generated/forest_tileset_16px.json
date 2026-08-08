@@ -1,0 +1,87 @@
+{
+  "image": "forest_tileset_16px.png",
+  "tile_size": [
+    16,
+    16
+  ],
+  "atlas_size": [
+    256,
+    288
+  ],
+  "columns": 16,
+  "rows": 18,
+  "regions": {
+    "terrain_and_grass": {
+      "x": 0,
+      "y": 0,
+      "width": 16,
+      "height": 2
+    },
+    "stone_and_crates": {
+      "x": 0,
+      "y": 2,
+      "width": 16,
+      "height": 2
+    },
+    "tree_module_a": {
+      "x": 0,
+      "y": 4,
+      "width": 3,
+      "height": 6
+    },
+    "tree_module_b": {
+      "x": 3,
+      "y": 4,
+      "width": 4,
+      "height": 6
+    },
+    "tree_module_c": {
+      "x": 7,
+      "y": 4,
+      "width": 6,
+      "height": 6
+    },
+    "vines": {
+      "x": 13,
+      "y": 4,
+      "width": 3,
+      "height": 6
+    },
+    "moving_platform": {
+      "x": 0,
+      "y": 10,
+      "width": 8,
+      "height": 2
+    },
+    "spring": {
+      "x": 8,
+      "y": 10,
+      "width": 1,
+      "height": 2
+    },
+    "metal_tiles": {
+      "x": 9,
+      "y": 10,
+      "width": 6,
+      "height": 2
+    },
+    "mountains": {
+      "x": 0,
+      "y": 12,
+      "width": 16,
+      "height": 2
+    },
+    "distant_forest": {
+      "x": 0,
+      "y": 14,
+      "width": 16,
+      "height": 2
+    },
+    "foreground_bushes": {
+      "x": 0,
+      "y": 16,
+      "width": 12,
+      "height": 2
+    }
+  }
+}

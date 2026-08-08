@@ -1,0 +1,15 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://world/falling_rock.gd" id="1_rock"]
+
+[sub_resource type="CircleShape2D" id="Circle_rock"]
+radius = 10.0
+
+[node name="FallingRock" type="Area2D"]
+collision_layer = 16
+collision_mask = 2
+script = ExtResource("1_rock")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("Circle_rock")
+

@@ -1,0 +1,51 @@
+{
+  "image": "forest_mechanic_spritesheet_32px.png",
+  "frame_size": [
+    32,
+    32
+  ],
+  "sheet_size": [
+    256,
+    192
+  ],
+  "columns": 8,
+  "rows": 6,
+  "animations": {
+    "idle": {
+      "row": 0,
+      "frames": 4,
+      "fps": 6,
+      "loop": true
+    },
+    "run": {
+      "row": 1,
+      "frames": 8,
+      "fps": 12,
+      "loop": true
+    },
+    "jump": {
+      "row": 2,
+      "frames": 3,
+      "fps": 9,
+      "loop": false
+    },
+    "fall": {
+      "row": 3,
+      "frames": 2,
+      "fps": 6,
+      "loop": true
+    },
+    "attack": {
+      "row": 4,
+      "frames": 4,
+      "fps": 12,
+      "loop": false
+    },
+    "hurt": {
+      "row": 5,
+      "frames": 2,
+      "fps": 8,
+      "loop": false
+    }
+  }
+}

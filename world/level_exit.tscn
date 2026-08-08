@@ -1,0 +1,15 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://world/level_exit.gd" id="1_exit"]
+
+[sub_resource type="RectangleShape2D" id="Rectangle_exit"]
+size = Vector2(34, 48)
+
+[node name="LevelExit" type="Area2D"]
+collision_layer = 16
+collision_mask = 2
+script = ExtResource("1_exit")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+position = Vector2(7, -18)
+shape = SubResource("Rectangle_exit")

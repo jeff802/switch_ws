@@ -1,0 +1,15 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://projectiles/energy_ball.gd" id="1_ball"]
+
+[sub_resource type="CircleShape2D" id="Circle_ball"]
+radius = 5.0
+
+[node name="EnergyBall" type="Area2D"]
+collision_layer = 8
+collision_mask = 5
+monitorable = false
+script = ExtResource("1_ball")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("Circle_ball")

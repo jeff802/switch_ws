@@ -1,4 +1,4 @@
-class_name GearSeed
+class_name GearCoin
 extends Area2D
 
 @export var value: int = 1
@@ -21,6 +21,7 @@ func _on_body_entered(body: Node2D) -> void:
 	if collected or not body.is_in_group("player"):
 		return
 	collected = true
+	AudioManager.play("checkpoint" if heals else "coin")
 	GameManager.add_collectible(value)
 	if heals and body.has_method("heal"):
 		body.heal(1)
@@ -30,6 +31,19 @@ func _on_body_entered(body: Node2D) -> void:
 
 
 func _draw() -> void:
-	var bob := sin(age * 4.0) * 2.0
-	PixelArt.diamond(self, Vector2(0, bob), 6.0, Color("f5c45e") if not heals else Color("72df9b"))
-	PixelArt.rect(self, Vector2(-1, -3 + bob), Vector2(2, 6), Color("fff0aa"))
+	var bob := 0.0
+	if heals:
+		# Healing heart pickup (original).
+		draw_circle(Vector2(-2.5, 0.0 + bob), 3.2, Color("e95f6a"))
+		draw_circle(Vector2(2.5, 0.0 + bob), 3.2, Color("e95f6a"))
+		draw_colored_polygon(PackedVector2Array([
+			Vector2(-4.5, 1.5 + bob), Vector2(4.5, 1.5 + bob), Vector2(0.0, 6.0 + bob),
+		]), Color("e95f6a"))
+		PixelArt.rect(self, Vector2(-1, -1 + bob), Vector2(2, 4), Color("ffb3b8"))
+		return
+	# Classic gold coin (original pixel design).
+	draw_circle(Vector2(0.0, bob), 6.0, Color("f7c948"))
+	draw_circle(Vector2(0.0, bob), 4.0, Color("e8a33d"))
+	PixelArt.rect(self, Vector2(-1, -5 + bob), Vector2(2, 10), Color("ffdf80"))
+	PixelArt.rect(self, Vector2(-3, -2 + bob), Vector2(6, 2), Color("c97b1c"))
+	PixelArt.rect(self, Vector2(-3, 0 + bob), Vector2(6, 2), Color("c97b1c"))

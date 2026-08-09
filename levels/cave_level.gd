@@ -10,7 +10,7 @@ func _build_level() -> void:
 	solid_rect(98, 12, 42, 4, 2)
 	solid_rect(9, 8, 6, 1, 1)
 	solid_rect(27, 9, 6, 1, 1)
-	solid_rect(38, 6, 5, 1, 1)
+	solid_rect(34, 6, 5, 1, 1)
 	solid_rect(52, 9, 7, 1, 1)
 	solid_rect(64, 6, 5, 1, 1)
 	solid_rect(78, 8, 7, 1, 1)

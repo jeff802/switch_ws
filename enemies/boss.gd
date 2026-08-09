@@ -81,8 +81,8 @@ func _enter_phase(next_phase: Phase, duration: float) -> void:
 func _handle_contacts() -> void:
 	for index: int in get_slide_collision_count():
 		var body := get_slide_collision(index).get_collider() as Node
-		if body != null and body.is_in_group("player") and body.has_method("take_damage"):
-			body.take_damage(1, global_position)
+		if body != null and body.is_in_group("player") and body.has_method("handle_enemy_contact"):
+			body.handle_enemy_contact(self)
 
 
 func take_damage(amount: int, stomped: bool = false) -> void:
@@ -120,4 +120,3 @@ func _draw() -> void:
 	PixelArt.rect(self, Vector2(-15, 8), Vector2(10, 8), Color("27363c"))
 	PixelArt.rect(self, Vector2(5, 8), Vector2(10, 8), Color("27363c"))
 	PixelArt.rect(self, Vector2(direction * 10.0 - 2, -11), Vector2(4, 3), Color("b9fff2"))
-

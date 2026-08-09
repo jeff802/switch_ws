@@ -27,9 +27,3 @@ func _process(delta: float) -> void:
 func _spawn() -> void:
 	current_enemy = ObjectPool.acquire_enemy(enemy_kind, global_position, patrol_distance)
 	respawn_timer = respawn_delay
-
-
-func _draw() -> void:
-	draw_line(Vector2(-5, 0), Vector2(5, 0), Color(0.4, 0.9, 0.8, 0.35), 1.0)
-	draw_line(Vector2(0, -5), Vector2(0, 5), Color(0.4, 0.9, 0.8, 0.35), 1.0)
-

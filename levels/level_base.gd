@@ -13,6 +13,9 @@ const SPIKE_SCENE := preload("res://world/spike.tscn")
 const FALLING_ROCK_SCENE := preload("res://world/falling_rock.tscn")
 const HIDDEN_AREA_SCENE := preload("res://world/hidden_area.tscn")
 const EXIT_SCENE := preload("res://world/level_exit.tscn")
+const BLOCK_SCENE := preload("res://world/block.tscn")
+const PIPE_SCENE := preload("res://world/pipe.tscn")
+const FLAGPOLE_SCENE := preload("res://world/flagpole.tscn")
 const SPAWNER_SCENE := preload("res://enemies/enemy_spawner.tscn")
 const BOSS_SCENE := preload("res://enemies/boss.tscn")
 
@@ -21,6 +24,7 @@ const BOSS_SCENE := preload("res://enemies/boss.tscn")
 @export var time_limit: float = 180.0
 @export var spawn_point: Vector2 = Vector2(64, 150)
 @export var level_width_tiles: int = 140
+@export var camera_look_ahead: float = 128.0
 
 @onready var tile_map: TileMap = $TileMap
 @onready var generated_backdrop: Node2D = $GeneratedBackdrop
@@ -38,6 +42,7 @@ func _ready() -> void:
 	player.global_position = spawn_point
 	_configure_camera()
 	GameManager.start_level(level_id, time_limit, spawn_point, level_id == "forest")
+	player.restore_power_level(GameManager.carried_power_level)
 	hud.bind_player(player)
 	queue_redraw()
 
@@ -53,10 +58,17 @@ func _build_level() -> void:
 
 
 func _configure_camera() -> void:
+	# Keep the player around the left third of the screen so the upcoming
+	# section is revealed as soon as they move right. With the 640px viewport,
+	# a centered camera otherwise stays pinned to the first screen until the
+	# player has walked more than 250px.
+	player.camera.position.x = camera_look_ahead
 	player.camera.limit_left = 0
 	player.camera.limit_right = level_width_tiles * TILE_SIZE
 	player.camera.limit_top = 0
-	player.camera.limit_bottom = 260
+	player.camera.limit_bottom = 300
+	player.camera.make_current()
+	player.camera.reset_smoothing()
 
 
 func _create_runtime_tileset() -> void:
@@ -71,13 +83,13 @@ func _create_generated_forest_tileset() -> void:
 	var atlas := TileSetAtlasSource.new()
 	atlas.texture = FOREST_TILESET_TEXTURE
 	atlas.texture_region_size = Vector2i(TILE_SIZE, TILE_SIZE)
+	tileset.add_source(atlas, 0)
 	# The first four atlas rows contain terrain, stone and crate tiles.
 	for tile_y: int in 4:
 		for tile_x: int in 16:
 			var coords := Vector2i(tile_x, tile_y)
 			atlas.create_tile(coords)
 			_add_full_tile_collision(atlas, coords)
-	tileset.add_source(atlas, 0)
 	tile_map.tile_set = tileset
 
 
@@ -100,11 +112,11 @@ func _create_procedural_tileset() -> void:
 	var atlas := TileSetAtlasSource.new()
 	atlas.texture = texture
 	atlas.texture_region_size = Vector2i(TILE_SIZE, TILE_SIZE)
+	tileset.add_source(atlas, 0)
 	for tile_index: int in 4:
 		var coords := Vector2i(tile_index, 0)
 		atlas.create_tile(coords)
 		_add_full_tile_collision(atlas, coords)
-	tileset.add_source(atlas, 0)
 	tile_map.tile_set = tileset
 
 
@@ -166,8 +178,8 @@ func erase_rect(x: int, y: int, width: int, height: int) -> void:
 			tile_map.erase_cell(0, Vector2i(cell_x, cell_y))
 
 
-func add_collectible(world_position: Vector2, heals: bool = false) -> GearSeed:
-	return add_entity(COLLECTIBLE_SCENE, world_position, {"heals": heals}) as GearSeed
+func add_collectible(world_position: Vector2, heals: bool = false) -> GearCoin:
+	return add_entity(COLLECTIBLE_SCENE, world_position, {"heals": heals}) as GearCoin
 
 
 func add_enemy(world_position: Vector2, kind: int, patrol: float = 80.0, respawns: bool = true) -> EnemySpawner:
@@ -183,6 +195,22 @@ func add_entity(scene: PackedScene, world_position: Vector2, properties: Diction
 		instance.set(property_name, properties[property_name])
 	entity_root.add_child(instance)
 	return instance
+
+
+func add_block(world_position: Vector2, block_type: int, content: int = 0) -> GearBlock:
+	return add_entity(BLOCK_SCENE, world_position, {
+		"block_type": block_type, "content": content,
+	}) as GearBlock
+
+
+func add_pipe(world_position: Vector2, pipe_height: float = 48.0) -> GearPipe:
+	return add_entity(PIPE_SCENE, world_position, {"pipe_height": pipe_height}) as GearPipe
+
+
+func add_flag(world_position: Vector2, unlock_id: String = "", next_scene: String = "") -> GearFlagpole:
+	return add_entity(FLAGPOLE_SCENE, world_position, {
+		"unlock_level_id": unlock_id, "next_scene": next_scene,
+	}) as GearFlagpole
 
 
 func add_collectible_arc(center: Vector2, count: int, spacing: float = 22.0, height: float = 22.0) -> void:
@@ -232,10 +260,18 @@ func _make_forest_sprite(cells: Rect2i) -> Sprite2D:
 
 
 func _add_generated_forest_background() -> void:
+	# The classic overworld backdrop is drawn procedurally in _draw().
+	return
 	var width := level_width_tiles * TILE_SIZE
 	for x: int in range(0, width + 512, 512):
+		# Distant ridge: same silhouette, pushed back with atmospheric tint.
+		var far_ridge := _make_forest_sprite(Rect2i(0, 12, 16, 2))
+		far_ridge.position = Vector2(x + 256, 96)
+		far_ridge.scale = Vector2(2, 2)
+		far_ridge.modulate = Color(0.5, 0.66, 0.58, 1.0)
+		generated_backdrop.add_child(far_ridge)
 		var mountains := _make_forest_sprite(Rect2i(0, 12, 16, 2))
-		mountains.position = Vector2(x + 256, 118)
+		mountains.position = Vector2(x + 256, 122)
 		mountains.scale = Vector2(2, 2)
 		generated_backdrop.add_child(mountains)
 		var forest_line := _make_forest_sprite(Rect2i(0, 14, 16, 2))
@@ -266,25 +302,109 @@ func _add_generated_forest_background() -> void:
 
 func _draw() -> void:
 	var width := float(level_width_tiles * TILE_SIZE)
-	var sky: Color
+	var sky_top: Color
+	var sky_mid: Color
+	var sky_horizon: Color
+	var sun_color := Color(1.0, 0.94, 0.72, 1.0)
+	var cloud_color := Color(1.0, 1.0, 1.0, 0.1)
+	var cloud_count := 4
 	match biome:
-		"cave": sky = Color("101820")
-		"snow": sky = Color("86aebb")
-		"city": sky = Color("17242c")
-		_: sky = Color("79a887")
-	draw_rect(Rect2(-400, -300, width + 800, 700), sky, true)
+		"cave":
+			sky_top = Color("0c141b")
+			sky_mid = Color("14212b")
+			sky_horizon = Color("24343e")
+			sun_color = Color(0.6, 0.95, 0.9, 1.0)
+			cloud_color = Color(0.5, 0.8, 0.8, 0.06)
+			cloud_count = 2
+		"snow":
+			sky_top = Color("5b8298")
+			sky_mid = Color("86aebb")
+			sky_horizon = Color("bcd9de")
+			sun_color = Color(1.0, 0.98, 0.92, 1.0)
+			cloud_color = Color(1.0, 1.0, 1.0, 0.16)
+			cloud_count = 5
+		"city":
+			sky_top = Color("0d1921")
+			sky_mid = Color("1a2a34")
+			sky_horizon = Color("2e424c")
+			sun_color = Color(1.0, 0.72, 0.42, 1.0)
+			cloud_color = Color(0.7, 0.8, 0.85, 0.07)
+			cloud_count = 2
+		_:
+			sky_top = Color("3f6fc4")
+			sky_mid = Color("5a8fe8")
+			sky_horizon = Color("8db9f2")
+			sun_color = Color(1.0, 0.96, 0.8, 1.0)
+			cloud_color = Color(1.0, 1.0, 1.0, 0.85)
+			cloud_count = 5
+	# Sky gradient bands across the full level width (crisp, integer-aligned).
+	# Bands cover the whole camera range (world y 0..260) so no clear color shows.
+	draw_rect(Rect2(-400, -300, width + 800, 370), sky_top, true)
+	draw_rect(Rect2(-400, 70, width + 800, 90), sky_mid, true)
+	draw_rect(Rect2(-400, 160, width + 800, 140), sky_horizon, true)
+	# Dark band below the ground line so pits read as solid depth.
+	var below_ground := Color("2c2020")
 	match biome:
-		"forest": pass
+		"cave": below_ground = Color("0b1116")
+		"snow": below_ground = Color("273d47")
+		"city": below_ground = Color("131d24")
+		_: below_ground = Color("4a3527")
+	draw_rect(Rect2(-400, 256, width + 800, 44), below_ground, true)
+	# Sun with a soft glow.
+	draw_circle(Vector2(620, 58), 30, Color(sun_color.r, sun_color.g, sun_color.b, 0.16))
+	draw_circle(Vector2(620, 58), 16, Color(sun_color.r, sun_color.g, sun_color.b, 0.9))
+	# Soft pixel clouds for depth.
+	if cloud_count > 0:
+		var step := maxf(1.0, width / float(cloud_count))
+		for index: int in cloud_count:
+			var cloud_x := 60.0 + float(index) * step + float(posmod(index * 137, int(step) * 2))
+			var cloud_y := 42.0 + float(posmod(index * 53, 34))
+			_draw_cloud(Vector2(cloud_x, cloud_y), cloud_color, 1.0 + float(posmod(index, 2)) * 0.35)
+	match biome:
+		"forest": _draw_forest_backdrop(width)
 		"cave": _draw_cave_backdrop(width)
 		"snow": _draw_snow_backdrop(width)
 		"city": _draw_city_backdrop(width)
 
 
+func _draw_cloud(center: Vector2, color: Color, scale: float) -> void:
+	draw_circle(center, 9.0 * scale, color)
+	draw_circle(center + Vector2(9, 3) * scale, 7.0 * scale, color)
+	draw_circle(center + Vector2(-9, 3) * scale, 7.0 * scale, color)
+	draw_rect(Rect2(center + Vector2(-8, 1) * scale, Vector2(16, 5) * scale), color, true)
+
+
 func _draw_forest_backdrop(width: float) -> void:
+	# Classic overworld backdrop: rolling hills, bushes and a distant castle.
+	var hill_green := Color("3fa44f")
+	var hill_dark := Color("2e7f3d")
+	var bush_green := Color("57c05f")
+	for x: int in range(0, int(width) + 512, 512):
+		draw_circle(Vector2(x + 256, 165), 118, hill_green)
+		draw_circle(Vector2(x + 128, 180), 88, hill_dark)
 	for x: int in range(0, int(width), 96):
-		PixelArt.rect(self, Vector2(x + 14, 72), Vector2(13, 120), Color("315d4a"))
-		draw_circle(Vector2(x + 20, 66), 34, Color("467b55"))
-		draw_circle(Vector2(x + 45, 80), 25, Color("568f5c"))
+		var bx := x + 48
+		draw_circle(Vector2(bx, 178), 12, bush_green)
+		draw_circle(Vector2(bx - 10, 183), 9, bush_green)
+		draw_circle(Vector2(bx + 10, 183), 9, bush_green)
+	_draw_castle(Vector2(1920, 158))
+
+
+func _draw_castle(base: Vector2) -> void:
+	var wall := Color("a9afb4")
+	var dark := Color("6e757b")
+	var roof := Color("c2503f")
+	PixelArt.rect(self, base + Vector2(-34, -34), Vector2(68, 34), wall)
+	PixelArt.rect(self, base + Vector2(-34, -34), Vector2(68, 6), dark)
+	PixelArt.rect(self, base + Vector2(-30, -30), Vector2(8, 30), dark)
+	PixelArt.rect(self, base + Vector2(22, -30), Vector2(8, 30), dark)
+	PixelArt.rect(self, base + Vector2(-42, -50), Vector2(16, 16), wall)
+	PixelArt.rect(self, base + Vector2(26, -50), Vector2(16, 16), wall)
+	PixelArt.rect(self, base + Vector2(-46, -56), Vector2(24, 8), roof)
+	PixelArt.rect(self, base + Vector2(22, -56), Vector2(24, 8), roof)
+	PixelArt.rect(self, base + Vector2(-6, -58), Vector2(12, 26), wall)
+	PixelArt.rect(self, base + Vector2(-8, -64), Vector2(16, 8), roof)
+	PixelArt.rect(self, base + Vector2(-3, -70), Vector2(6, 6), roof)
 
 
 func _draw_cave_backdrop(width: float) -> void:

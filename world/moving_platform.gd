@@ -10,6 +10,7 @@ var clock: float = 0.0
 
 
 func _ready() -> void:
+	add_to_group("platforms")
 	origin = position
 
 

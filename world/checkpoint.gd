@@ -18,6 +18,7 @@ func _on_body_entered(body: Node2D) -> void:
 	if activated or not body.is_in_group("player"):
 		return
 	activated = true
+	AudioManager.play("checkpoint")
 	GameManager.set_checkpoint(global_position + Vector2(0, -20))
 	GameManager.add_score(300)
 	queue_redraw()

@@ -9,4 +9,4 @@ biome = "city"
 level_id = "boss"
 time_limit = 240.0
 spawn_point = Vector2(80, 150)
-level_width_tiles = 72
+level_width_tiles = 120

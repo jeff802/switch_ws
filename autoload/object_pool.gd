@@ -35,6 +35,16 @@ func acquire_projectile(world_position: Vector2, direction: float, source: Node)
 	return item
 
 
+func active_projectile_count(source: Node) -> int:
+	var count := 0
+	for child: Node in get_children():
+		if not child.scene_file_path.ends_with("energy_ball.tscn"):
+			continue
+		if child.get("active") == true and child.get("source") == source:
+			count += 1
+	return count
+
+
 func release_projectile(item: Node2D) -> void:
 	if item.has_method("deactivate"):
 		item.deactivate()

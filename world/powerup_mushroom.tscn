@@ -1,0 +1,22 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://world/powerup_mushroom.gd" id="1_mush"]
+
+[sub_resource type="RectangleShape2D" id="Rectangle_mush"]
+size = Vector2(14, 18)
+
+[node name="PowerupMushroom" type="CharacterBody2D"]
+collision_layer = 0
+collision_mask = 1
+script = ExtResource("1_mush")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+position = Vector2(0, -2)
+shape = SubResource("Rectangle_mush")
+
+[node name="TouchArea" type="Area2D" parent="."]
+collision_layer = 0
+collision_mask = 2
+
+[node name="TouchShape" type="CollisionShape2D" parent="TouchArea"]
+shape = SubResource("Rectangle_mush")

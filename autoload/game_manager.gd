@@ -12,6 +12,7 @@ var time_left: float = 180.0
 var current_level_id: String = "forest"
 var checkpoint_position: Vector2 = Vector2.ZERO
 var run_active: bool = false
+var carried_power_level: int = 0
 
 
 func _process(delta: float) -> void:
@@ -32,6 +33,7 @@ func start_level(level_id: String, time_limit: float, spawn: Vector2, reset_scor
 	if reset_score:
 		score = 0
 		collectibles = 0
+		carried_power_level = 0
 	score_changed.emit(score)
 	collectibles_changed.emit(collectibles)
 	time_changed.emit(time_left)
@@ -53,10 +55,20 @@ func set_checkpoint(world_position: Vector2) -> void:
 	checkpoint_position = world_position
 
 
+func set_carried_power_level(level: int) -> void:
+	carried_power_level = clampi(level, 0, 2)
+
+
 func respawn_player(player: Node2D) -> void:
 	player.global_position = checkpoint_position
 	if player.has_method("restore_after_respawn"):
 		player.restore_after_respawn()
+
+
+func freeze_level_timer() -> void:
+	# Used by scripted goal sequences. The remaining time is preserved and
+	# converted to score only after the animation has finished.
+	run_active = false
 
 
 func finish_level(unlock_id: String, next_scene: String) -> void:
@@ -66,7 +78,9 @@ func finish_level(unlock_id: String, next_scene: String) -> void:
 	if not unlock_id.is_empty():
 		SaveManager.unlock_level(unlock_id)
 	if not next_scene.is_empty():
-		get_tree().change_scene_to_file(next_scene)
+		# Scene changes must be deferred: finish_level can be called from a
+		# physics callback (e.g. Area2D.body_entered on the level exit).
+		get_tree().call_deferred("change_scene_to_file", next_scene)
 
 
 func end_run() -> void:

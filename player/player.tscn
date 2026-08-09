@@ -4,7 +4,7 @@
 [ext_resource type="SpriteFrames" path="res://player/forest_mechanic_frames.tres" id="2_frames"]
 
 [sub_resource type="CapsuleShape2D" id="Capsule_player"]
-radius = 7.0
+radius = 8.0
 height = 25.0
 
 [node name="Player" type="CharacterBody2D"]

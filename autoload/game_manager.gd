@@ -13,6 +13,7 @@ var current_level_id: String = "forest"
 var checkpoint_position: Vector2 = Vector2.ZERO
 var run_active: bool = false
 var carried_power_level: int = 0
+var campaign_stage: int = 0
 
 
 func _process(delta: float) -> void:
@@ -57,6 +58,14 @@ func set_checkpoint(world_position: Vector2) -> void:
 
 func set_carried_power_level(level: int) -> void:
 	carried_power_level = clampi(level, 0, 2)
+
+
+func set_campaign_stage(stage: int) -> void:
+	campaign_stage = clampi(stage, 0, 31)
+
+
+func advance_campaign_stage() -> void:
+	campaign_stage = mini(campaign_stage + 1, 31)
 
 
 func respawn_player(player: Node2D) -> void:

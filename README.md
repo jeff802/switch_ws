@@ -9,7 +9,7 @@ sprites, audio or other protected assets.
 
 1. Open this folder in Godot 4.3 or newer (project is saved as 4.7).
 2. Press **F5** to start `res://levels/test_level.tscn`.
-3. The test level leads to Cave, Snow and the Gearheart Guardian boss level.
+3. The campaign starts at World 1-1 and continues through World 8-4.
 
 Fullscreen is designed for big screens: the game renders at 640×360 and uses
 integer scaling (3× at 1080p, 4× at 1440p) so pixels stay crisp.
@@ -47,6 +47,21 @@ detected.
   castle, with a classic SCORE / COINS / TIME / WORLD HUD.
 - Original hero, enemies and boss — no third-party or Nintendo assets.
 
+## 32-stage campaign
+
+The main campaign contains eight worlds with four stages each. Stages 1–3 use
+long scrolling routes with generated but deterministic original layouts; every
+route includes power blocks, platform/coin paths, checkpoints and a flagpole.
+Later worlds add wider pits, faster enemies, moving platforms, spikes, falling
+rocks and hidden passages. Every stage 4 is a boss stronghold: its right-hand
+energy gate remains solid during the fight, fades after the guardian is
+defeated, and opens a separate victory corridor and exit. World 8-4 ends with
+the full-campaign completion banner.
+
+The campaign deliberately recreates the progression and mechanical structure
+of a classic 8×4 platform adventure while keeping all maps, names, art and
+encounters original.
+
 ## Learning the platformer feel
 
 The project recreates the *rules and feel* of a classic momentum platformer
@@ -69,7 +84,9 @@ consistent across keyboard, controller and mobile virtual buttons.
 Projectile progression is `SMALL → GEAR → BOLT`: a small character receives a
 growth pickup from a power-up block, while a large character receives the
 original mechanical Energy Bloom. BOLT mode enables ground-bouncing shots,
-limits each player to two active shots, and downgrades to GEAR on damage.
+limits each player to two active shots, and downgrades to GEAR on damage. The
+Energy Bloom also swaps the hero's cap and coat to a distinct ice-cyan palette
+while preserving skin, goggles, outlines and the selected character tint.
 
 The goal sequence in `world/flagpole.gd` is a useful example of a scripted
 state transition: it freezes the timer, scores the grab height, drops the
@@ -99,3 +116,13 @@ noise) — no audio asset files are included.
   pooled projectiles/enemies.
 - JSON save data for high score, unlocked levels and keyboard bindings.
 - Export presets for Windows, Linux, Android and Web.
+
+## Regression probe
+
+The campaign integrity probe instantiates every stage and validates its camera
+boundary, goal and boss/exit structure. It also defeats every guardian and
+checks all eight stage-4 transitions:
+
+```bash
+godot4 --headless --path . --script tests/campaign_probe.gd
+```

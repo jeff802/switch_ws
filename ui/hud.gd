@@ -77,6 +77,15 @@ func show_path_open() -> void:
 	)
 
 
+func show_campaign_complete() -> void:
+	if path_message_tween != null and path_message_tween.is_valid():
+		path_message_tween.kill()
+	$VictoryLabel.modulate.a = 1.0
+	$VictoryLabel.text = "GEAR KINGDOM RESTORED!\nALL 32 STAGES CLEAR"
+	$VictoryLabel.visible = true
+	boss_panel.visible = false
+
+
 func _on_health_changed(current: int, maximum: int) -> void:
 	health_bar.max_value = maximum
 	health_bar.value = current
@@ -102,6 +111,11 @@ func _on_time_changed(value: float) -> void:
 
 
 func _on_level_started(level_id: String) -> void:
+	if level_id.begins_with("world_"):
+		var parts := level_id.trim_prefix("world_").split("_")
+		if parts.size() == 2:
+			world_label.text = "WORLD %s-%s" % [parts[0], parts[1]]
+			return
 	var world_names := {
 		"forest": "WORLD 1-1",
 		"cave": "WORLD 1-2",

@@ -1,6 +1,8 @@
 class_name GearFlagpole
 extends Area2D
 
+signal activated(body: Node2D)
+
 @export var unlock_level_id: String = ""
 @export_file("*.tscn") var next_scene: String = ""
 var finished: bool = false
@@ -26,6 +28,7 @@ func _on_body_entered(body: Node2D) -> void:
 	var flag_drop := create_tween().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	flag_drop.tween_property(self, "flag_drop_offset", 84.0, slide_time)
 	flag_drop.tween_callback(queue_redraw)
+	activated.emit(body)
 	if body.has_method("play_flagpole_finish"):
 		await body.play_flagpole_finish(global_position.x, global_position.y, slide_time)
 	await get_tree().create_timer(0.25).timeout

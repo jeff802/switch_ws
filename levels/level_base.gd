@@ -41,7 +41,12 @@ func _ready() -> void:
 	_build_level()
 	player.global_position = spawn_point
 	_configure_camera()
-	GameManager.start_level(level_id, time_limit, spawn_point, level_id == "forest")
+	GameManager.start_level(
+		level_id,
+		time_limit,
+		spawn_point,
+		level_id == "forest" or level_id == "world_1_1"
+	)
 	player.restore_power_level(GameManager.carried_power_level)
 	hud.bind_player(player)
 	queue_redraw()

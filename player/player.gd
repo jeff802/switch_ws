@@ -440,7 +440,10 @@ func get_power_level() -> int:
 
 func _update_power_visual() -> void:
 	var base_tint: Color = SettingsManager.get_character()["tint"]
-	sprite.self_modulate = base_tint.lerp(Color("76e8f4"), 0.38) if has_orb_power else base_tint
+	sprite.self_modulate = base_tint
+	var palette_material := sprite.material as ShaderMaterial
+	if palette_material != null:
+		palette_material.set_shader_parameter("bolt_mix", 1.0 if has_orb_power else 0.0)
 
 
 func restore_power_level(level: int) -> void:

@@ -15,6 +15,7 @@ func _initialize() -> void:
 
 func _run() -> void:
 	var manager := root.get_node("GameManager")
+	manager.persistence_enabled = false
 	var campaign_scene = load(CAMPAIGN_SCENE_PATH) as PackedScene
 	for stage_index: int in 32:
 		manager.set_campaign_stage(stage_index)
@@ -57,6 +58,7 @@ func _run() -> void:
 	manager.set_campaign_stage(0)
 	manager.set_carried_power_level(0)
 	manager.run_active = false
+	manager.persistence_enabled = true
 	if failures.is_empty():
 		print("CAMPAIGN PROBE: %d checks passed across 32 stages" % checks)
 		quit(0)

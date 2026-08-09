@@ -6,7 +6,7 @@ signal stamina_changed(current: float, maximum: float)
 signal power_changed(current: int, maximum: int)
 signal state_changed(state_name: String)
 
-enum State { IDLE, RUN, JUMP, FALL, ATTACK, HURT, DEAD }
+enum State { IDLE, RUN, JUMP, FALL, ATTACK, HURT, DEAD, DOUBLE_JUMP, WALL_SLIDE, WALL_JUMP }
 
 const WALK_SPEED := 96.0
 const RUN_SPEED := 168.0
@@ -36,9 +36,17 @@ const SMALL_CAPSULE_HEIGHT := 25.0
 const SMALL_CAPSULE_RADIUS := 8.0
 const BIG_CAPSULE_HEIGHT := 37.0
 const BIG_CAPSULE_RADIUS := 12.0
+const DOUBLE_JUMP_VELOCITY_FACTOR := 0.92
+const WALL_JUMP_HORIZONTAL_SPEED := 190.0
+const WALL_JUMP_VERTICAL_FACTOR := 0.9
+const WALL_SLIDE_GRAVITY := 180.0
+const WALL_SLIDE_MAX_SPEED := 82.0
+const WALL_JUMP_CONTROL_TIME := 0.16
+const ABILITY_STATE_TIME := 0.12
 
 @export var max_health: int = 5
 @export var max_stamina: float = 100.0
+@export_range(0, 2, 1) var max_air_jumps: int = 1
 
 var health: int = 5
 var stamina: float = 100.0
@@ -60,12 +68,19 @@ var jump_was_pressed: bool = false
 var attack_was_pressed: bool = false
 var stomp_was_pressed: bool = false
 var dust_count: int = 0
+var air_jumps_remaining: int = 1
+var wall_jump_control_timer: float = 0.0
+var ability_state_timer: float = 0.0
+var wall_slide_active: bool = false
+var _reported_air_jumps: int = -1
+var _reported_wall_slide: bool = false
 var is_big: bool = false
 var has_orb_power: bool = false
 var walk_speed := WALK_SPEED
 var run_speed := RUN_SPEED
 var jump_velocity := JUMP_VELOCITY
 var dust_color := DUST_COLOR
+var state_machine: PlayerStateMachine
 
 @onready var collision_shape: CollisionShape2D = $CollisionShape2D
 @onready var sprite: AnimatedSprite2D = $AnimatedSprite2D
@@ -75,6 +90,7 @@ var dust_color := DUST_COLOR
 
 func _ready() -> void:
 	add_to_group("player")
+	_setup_state_machine()
 	_apply_character()
 	SettingsManager.changed.connect(_apply_character)
 	health = max_health
@@ -84,7 +100,9 @@ func _ready() -> void:
 	stamina_changed.emit(stamina, max_stamina)
 	power_changed.emit(get_power_level(), 2)
 	GameManager.time_expired.connect(_on_time_expired)
-	_play_state_animation()
+	air_jumps_remaining = max_air_jumps
+	state_machine.start(State.IDLE)
+	_broadcast_mobility(true)
 	_update_sprite_visual()
 
 
@@ -108,6 +126,8 @@ func _physics_process(delta: float) -> void:
 	stomp_buffer_timer = maxf(0.0, stomp_buffer_timer - delta)
 	stomp_grace_timer = maxf(0.0, stomp_grace_timer - delta)
 	attack_timer = maxf(0.0, attack_timer - delta)
+	wall_jump_control_timer = maxf(0.0, wall_jump_control_timer - delta)
+	ability_state_timer = maxf(0.0, ability_state_timer - delta)
 	# TouchScreenButton changes the Input action state directly and does not
 	# reliably emit an unhandled event or just-pressed flag on every platform.
 	# Track the edge ourselves so keyboard, gamepad and touch behave identically.
@@ -124,10 +144,7 @@ func _physics_process(delta: float) -> void:
 	if jump_just_pressed:
 		jump_buffer_timer = JUMP_BUFFER_TIME
 
-	if state == State.DEAD:
-		velocity.y = minf(velocity.y + FALLING_GRAVITY * delta, MAX_FALL_SPEED)
-		move_and_slide()
-		_update_sprite_visual()
+	if state_machine.physics_process(delta):
 		return
 
 	if controls_locked:
@@ -145,7 +162,7 @@ func _physics_process(delta: float) -> void:
 
 	var was_on_floor := is_on_floor()
 	var input_axis := Input.get_axis("move_left", "move_right")
-	if not is_zero_approx(input_axis):
+	if not is_zero_approx(input_axis) and wall_jump_control_timer <= 0.0:
 		facing = signf(input_axis)
 
 	var wants_run := Input.is_action_pressed("run") and not is_zero_approx(input_axis)
@@ -156,7 +173,9 @@ func _physics_process(delta: float) -> void:
 		and not is_zero_approx(velocity.x)
 		and signf(input_axis) != signf(velocity.x)
 	)
-	if is_on_floor() and is_zero_approx(input_axis):
+	if wall_jump_control_timer > 0.0:
+		skid_dust_played = false
+	elif is_on_floor() and is_zero_approx(input_axis):
 		velocity.x = move_toward(velocity.x, 0.0, FRICTION * delta)
 		skid_dust_played = false
 	elif reversing:
@@ -183,19 +202,18 @@ func _physics_process(delta: float) -> void:
 		sprint_dust_timer = 0.0
 	if is_on_floor():
 		coyote_timer = COYOTE_TIME
+		_set_air_jumps(max_air_jumps)
 	else:
 		coyote_timer = maxf(0.0, coyote_timer - delta)
 		_apply_gravity(delta)
 
-	if jump_buffer_timer > 0.0 and coyote_timer > 0.0:
-		var run_ratio := clampf(absf(velocity.x) / maxf(run_speed, 1.0), 0.0, 1.0)
-		velocity.y = jump_velocity - RUN_JUMP_BONUS * run_ratio
-		jump_buffer_timer = 0.0
-		coyote_timer = 0.0
-		is_stomping = false
-		AudioManager.play("jump")
-		_spawn_dust(Vector2(0.0, 10.0), 5.0)
-		_set_state(State.JUMP)
+	if jump_buffer_timer > 0.0:
+		if _can_wall_jump():
+			_perform_wall_jump()
+		elif coyote_timer > 0.0:
+			_perform_ground_jump()
+		elif air_jumps_remaining > 0:
+			_perform_double_jump()
 
 	if jump_just_released and velocity.y < -120.0:
 		velocity.y *= 0.46
@@ -221,6 +239,12 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 	_handle_slide_collisions()
 	_bump_blocks_from_below()
+	var now_wall_sliding := _should_wall_slide(input_axis)
+	if now_wall_sliding and velocity.y > WALL_SLIDE_MAX_SPEED:
+		velocity.y = WALL_SLIDE_MAX_SPEED
+	if wall_slide_active != now_wall_sliding:
+		wall_slide_active = now_wall_sliding
+		_broadcast_mobility()
 	if not was_on_floor and is_on_floor():
 		# Landing feedback: bigger puff when finishing a stomp/ground pound.
 		AudioManager.play("stomp" if is_stomping else "land")
@@ -228,6 +252,8 @@ func _physics_process(delta: float) -> void:
 		if is_stomping:
 			is_stomping = false
 		stomp_chain = 0
+		wall_slide_active = false
+		_set_air_jumps(max_air_jumps)
 
 	if attack_timer <= 0.0:
 		_update_locomotion_state(input_axis)
@@ -235,6 +261,9 @@ func _physics_process(delta: float) -> void:
 
 
 func _apply_gravity(delta: float) -> void:
+	if wall_slide_active and velocity.y >= 0.0:
+		velocity.y = minf(velocity.y + WALL_SLIDE_GRAVITY * delta, WALL_SLIDE_MAX_SPEED)
+		return
 	var gravity := FALLING_GRAVITY
 	if velocity.y < 0.0:
 		gravity = RISING_GRAVITY if Input.is_action_pressed("jump") else RELEASE_GRAVITY
@@ -303,7 +332,11 @@ func handle_enemy_contact(enemy: Node2D) -> void:
 
 
 func _update_locomotion_state(input_axis: float) -> void:
-	if not is_on_floor():
+	if ability_state_timer > 0.0 and state in [State.DOUBLE_JUMP, State.WALL_JUMP]:
+		return
+	if wall_slide_active:
+		_set_state(State.WALL_SLIDE)
+	elif not is_on_floor():
 		_set_state(State.JUMP if velocity.y < 0.0 else State.FALL)
 	elif absf(input_axis) > 0.01:
 		_set_state(State.RUN)
@@ -314,6 +347,131 @@ func _update_locomotion_state(input_axis: float) -> void:
 func _update_hurt_state() -> void:
 	if invulnerability_timer <= 0.55:
 		_set_state(State.FALL if not is_on_floor() else State.IDLE)
+
+
+func _setup_state_machine() -> void:
+	state_machine = PlayerStateMachine.new()
+	state_machine.transitioned.connect(_on_state_machine_transitioned)
+	for state_id: int in State.values():
+		state_machine.register_state(state_id)
+	state_machine.register_state(
+		State.DOUBLE_JUMP,
+		Callable(self, "_enter_double_jump_state")
+	)
+	state_machine.register_state(
+		State.WALL_JUMP,
+		Callable(self, "_enter_wall_jump_state")
+	)
+	state_machine.register_state(
+		State.HURT,
+		Callable(),
+		Callable(self, "_state_hurt_physics")
+	)
+	state_machine.register_state(
+		State.DEAD,
+		Callable(),
+		Callable(self, "_state_dead_physics")
+	)
+
+
+func _on_state_machine_transitioned(_previous_state: int, next_state: int) -> void:
+	if next_state != State.ATTACK:
+		attack_projectile_pending = false
+	state = next_state
+	var state_name := str(State.keys()[state])
+	state_changed.emit(state_name)
+	GameEvents.player_state_changed.emit(state_name)
+	_play_state_animation()
+
+
+func _state_dead_physics(delta: float) -> bool:
+	velocity.y = minf(velocity.y + FALLING_GRAVITY * delta, MAX_FALL_SPEED)
+	move_and_slide()
+	_update_sprite_visual()
+	return true
+
+
+func _state_hurt_physics(delta: float) -> bool:
+	_apply_gravity(delta)
+	move_and_slide()
+	_update_hurt_state()
+	_update_sprite_visual()
+	return true
+
+
+func _perform_ground_jump() -> void:
+	var run_ratio := clampf(absf(velocity.x) / maxf(run_speed, 1.0), 0.0, 1.0)
+	velocity.y = jump_velocity - RUN_JUMP_BONUS * run_ratio
+	jump_buffer_timer = 0.0
+	coyote_timer = 0.0
+	is_stomping = false
+	AudioManager.play("jump")
+	_spawn_dust(Vector2(0.0, 10.0), 5.0)
+	_set_state(State.JUMP)
+
+
+func _perform_double_jump() -> void:
+	_set_air_jumps(air_jumps_remaining - 1)
+	velocity.y = jump_velocity * DOUBLE_JUMP_VELOCITY_FACTOR
+	jump_buffer_timer = 0.0
+	coyote_timer = 0.0
+	is_stomping = false
+	ability_state_timer = ABILITY_STATE_TIME
+	_set_state(State.DOUBLE_JUMP)
+
+
+func _perform_wall_jump() -> void:
+	var wall_normal := get_wall_normal()
+	velocity.x = wall_normal.x * WALL_JUMP_HORIZONTAL_SPEED
+	velocity.y = jump_velocity * WALL_JUMP_VERTICAL_FACTOR
+	facing = wall_normal.x
+	jump_buffer_timer = 0.0
+	coyote_timer = 0.0
+	is_stomping = false
+	wall_slide_active = false
+	wall_jump_control_timer = WALL_JUMP_CONTROL_TIME
+	ability_state_timer = ABILITY_STATE_TIME
+	_set_state(State.WALL_JUMP)
+	_broadcast_mobility()
+
+
+func _enter_double_jump_state(_previous_state: int) -> void:
+	AudioManager.play("jump")
+	_spawn_dust(Vector2(0.0, 8.0), 8.0)
+	GameEvents.ability_used.emit("DOUBLE JUMP")
+
+
+func _enter_wall_jump_state(_previous_state: int) -> void:
+	AudioManager.play("jump")
+	_spawn_dust(Vector2(-facing * 7.0, 2.0), 7.0)
+	GameEvents.ability_used.emit("WALL JUMP")
+
+
+func _can_wall_jump() -> bool:
+	return not is_on_floor() and is_on_wall_only() and absf(get_wall_normal().x) > 0.5
+
+
+func _should_wall_slide(input_axis: float) -> bool:
+	if is_on_floor() or not is_on_wall_only() or velocity.y < 0.0:
+		return false
+	var wall_normal := get_wall_normal()
+	return absf(wall_normal.x) > 0.5 and input_axis * wall_normal.x < -0.05
+
+
+func _set_air_jumps(value: int) -> void:
+	var next_value := clampi(value, 0, max_air_jumps)
+	if air_jumps_remaining == next_value:
+		return
+	air_jumps_remaining = next_value
+	_broadcast_mobility()
+
+
+func _broadcast_mobility(force: bool = false) -> void:
+	if not force and _reported_air_jumps == air_jumps_remaining and _reported_wall_slide == wall_slide_active:
+		return
+	_reported_air_jumps = air_jumps_remaining
+	_reported_wall_slide = wall_slide_active
+	GameEvents.mobility_changed.emit(air_jumps_remaining, wall_slide_active)
 
 
 func take_damage(amount: int, source_position: Vector2 = Vector2.ZERO) -> void:
@@ -492,7 +650,7 @@ func _die() -> void:
 	GameManager.set_carried_power_level(0)
 	GameManager.end_run()
 	await get_tree().create_timer(1.35).timeout
-	GameManager.respawn_player(self)
+	GameManager.reload_current_level()
 
 
 func restore_after_respawn() -> void:
@@ -502,6 +660,10 @@ func restore_after_respawn() -> void:
 	invulnerability_timer = 1.5
 	stomp_chain = 0
 	stomp_grace_timer = 0.0
+	air_jumps_remaining = max_air_jumps
+	wall_jump_control_timer = 0.0
+	ability_state_timer = 0.0
+	wall_slide_active = false
 	jump_was_pressed = Input.is_action_pressed("jump")
 	attack_was_pressed = Input.is_action_pressed("attack")
 	stomp_was_pressed = Input.is_action_pressed("stomp")
@@ -524,6 +686,7 @@ func restore_after_respawn() -> void:
 	health_changed.emit(health, max_health)
 	stamina_changed.emit(stamina, max_stamina)
 	power_changed.emit(get_power_level(), 2)
+	_broadcast_mobility(true)
 	GameManager.run_active = true
 
 
@@ -542,12 +705,10 @@ func _set_stamina(value: float) -> void:
 
 
 func _set_state(next_state: State) -> void:
-	if state == next_state:
+	if state_machine != null:
+		state_machine.transition_to(next_state)
 		return
-	if next_state != State.ATTACK:
-		attack_projectile_pending = false
 	state = next_state
-	state_changed.emit(str(State.keys()[state]))
 	_play_state_animation()
 
 
@@ -569,6 +730,10 @@ func _play_state_animation() -> void:
 			sprite.play(&"hurt")
 			sprite.frame = 1
 			sprite.pause()
+		State.DOUBLE_JUMP, State.WALL_JUMP:
+			sprite.play(&"jump")
+		State.WALL_SLIDE:
+			sprite.play(&"fall")
 
 
 func _update_sprite_visual() -> void:

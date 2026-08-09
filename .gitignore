@@ -1,0 +1,14 @@
+# Godot editor/import cache (always regenerated locally).
+.godot/
+
+# OS and editor scratch files.
+.DS_Store
+*.tmp
+*.temp
+*.bak
+*.log
+*~
+
+# Local build/export output.
+build/
+dist/

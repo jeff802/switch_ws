@@ -3,6 +3,7 @@ extends Area2D
 
 @export var value: int = 1
 @export var heals: bool = false
+@export var collectible_id: String = ""
 
 var age: float = 0.0
 var collected: bool = false
@@ -22,7 +23,7 @@ func _on_body_entered(body: Node2D) -> void:
 		return
 	collected = true
 	AudioManager.play("checkpoint" if heals else "coin")
-	GameManager.add_collectible(value)
+	GameEvents.collectible_collected.emit(collectible_id, value, heals)
 	if heals and body.has_method("heal"):
 		body.heal(1)
 	set_deferred("monitoring", false)

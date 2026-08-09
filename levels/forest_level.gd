@@ -41,11 +41,13 @@ func _build_level() -> void:
 	add_collectible(Vector2(110 * 16 + 8, 6 * 16 + 8), false)
 	add_collectible(Vector2(2020, 108), true)
 
-	# Walkers (stompable).
-	add_enemy(Vector2(300, 174), PooledEnemy.Kind.BEETLE_BOT, 70)
-	add_enemy(Vector2(900, 174), PooledEnemy.Kind.BEETLE_BOT, 80)
-	add_enemy(Vector2(1400, 174), PooledEnemy.Kind.BEETLE_BOT, 80)
-	add_enemy(Vector2(1900, 174), PooledEnemy.Kind.BOUNCECAP, 90)
+	# Coppercaps establish the ground-enemy rhythm; cacti vary the timing.
+	add_enemy(Vector2(300, 174), PooledEnemy.Kind.BOUNCECAP, 54, false)
+	add_enemy(Vector2(900, 174), PooledEnemy.Kind.BOUNCECAP, 64, false)
+	add_enemy(Vector2(1400, 174), PooledEnemy.Kind.BOUNCECAP, 70, false)
+	add_enemy(Vector2(1900, 174), PooledEnemy.Kind.BOUNCECAP, 76, false)
+	add_cactus(Vector2(650, 192), false)
+	add_cactus(Vector2(1640, 192), true, 0.8)
 
-	add_entity(CHECKPOINT_SCENE, Vector2(1100, 188))
+	add_checkpoint(Vector2(1100, 188))
 	add_flag(Vector2(2190, 188), "cave", "res://levels/cave_level.tscn")

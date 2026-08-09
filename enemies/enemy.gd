@@ -29,7 +29,7 @@ func activate(new_kind: Kind, origin: Vector2, new_patrol_distance: float) -> vo
 	spawn_position = origin
 	global_position = origin
 	patrol_distance = new_patrol_distance
-	health = 3 if kind == Kind.BEETLE_BOT else 2
+	health = 3 if kind == Kind.BEETLE_BOT else (1 if kind == Kind.BOUNCECAP else 2)
 	direction = -1.0
 	action_timer = 0.8
 	age = 0.0
@@ -76,14 +76,14 @@ func _update_beetle(delta: float) -> void:
 
 func _update_bouncecap(delta: float) -> void:
 	action_timer -= delta
+	velocity.x = direction * 42.0
 	velocity.y = minf(velocity.y + GRAVITY * delta, 420.0)
 	if is_on_floor() and action_timer <= 0.0:
-		var player := get_tree().get_first_node_in_group("player") as Node2D
-		if player != null:
-			direction = signf(player.global_position.x - global_position.x)
-		velocity = Vector2(direction * 54.0, -285.0)
-		action_timer = 1.35
+		velocity.y = -155.0
+		action_timer = 2.1
 	move_and_slide()
+	if is_on_wall() or absf(global_position.x - spawn_position.x) > patrol_distance:
+		direction *= -1.0
 	_handle_player_contacts()
 
 
@@ -160,13 +160,21 @@ func _draw_beetle() -> void:
 
 
 func _draw_bouncecap() -> void:
-	var squash := 2.0 if is_on_floor() and action_timer < 0.25 else 0.0
-	PixelArt.rect(self, Vector2(-12, -13 + squash), Vector2(24, 25), Color("101820"))
-	PixelArt.rect(self, Vector2(-4, -3 + squash), Vector2(8, 12 - squash), Color("f2e8ac"))
-	PixelArt.rect(self, Vector2(-11, -10 + squash), Vector2(22, 8), Color("8a5aa8"))
-	PixelArt.rect(self, Vector2(-7, -12 + squash), Vector2(14, 3), Color("c48de6"))
-	PixelArt.rect(self, Vector2(-2, 1 + squash), Vector2(2, 2), Color("1a2026"))
-	PixelArt.rect(self, Vector2(3, 1 + squash), Vector2(2, 2), Color("1a2026"))
+	var squash := 1.0 if is_on_floor() and action_timer < 0.18 else 0.0
+	var outline := Color("101820")
+	# Coppercap: squat gear-rimmed cap, pale stalk and two heavy tread-like feet.
+	PixelArt.rect(self, Vector2(-12, -11 + squash), Vector2(24, 12), outline)
+	PixelArt.rect(self, Vector2(-9, -9 + squash), Vector2(18, 8), Color("a94f35"))
+	PixelArt.rect(self, Vector2(-6, -11 + squash), Vector2(12, 3), Color("e17b45"))
+	PixelArt.rect(self, Vector2(-8, -6 + squash), Vector2(4, 3), Color("efb253"))
+	PixelArt.rect(self, Vector2(4, -7 + squash), Vector2(4, 3), Color("6c3029"))
+	PixelArt.rect(self, Vector2(-6, 0 + squash), Vector2(12, 9 - squash), outline)
+	PixelArt.rect(self, Vector2(-4, 0 + squash), Vector2(8, 7 - squash), Color("e8d6a6"))
+	PixelArt.rect(self, Vector2(-3, 1 + squash), Vector2(2, 3), Color("26343a"))
+	PixelArt.rect(self, Vector2(2, 1 + squash), Vector2(2, 3), Color("26343a"))
+	PixelArt.rect(self, Vector2(-9, 7), Vector2(7, 4), outline)
+	PixelArt.rect(self, Vector2(2, 7), Vector2(7, 4), outline)
+	PixelArt.rect(self, Vector2(direction * 7.0 - 1, -5 + squash), Vector2(2, 2), Color("ffe477"))
 
 
 func _draw_gearwing() -> void:

@@ -14,9 +14,12 @@ extends CanvasLayer
 @onready var boss_bar: ProgressBar = $BossPanel/BossBar
 @onready var mobile_controls: Node2D = $MobileControls
 @onready var controls_hint: Label = $ControlsHint
+@onready var ability_label: Label = $TopBar/AbilityLabel
+@onready var save_label: Label = $SaveLabel
 
 var bound_player: ForestMechanic
 var path_message_tween: Tween
+var save_message_tween: Tween
 
 
 func _ready() -> void:
@@ -25,6 +28,9 @@ func _ready() -> void:
 	GameManager.collectibles_changed.connect(_on_collectibles_changed)
 	GameManager.time_changed.connect(_on_time_changed)
 	GameManager.level_started.connect(_on_level_started)
+	GameEvents.mobility_changed.connect(_on_mobility_changed)
+	GameEvents.collectible_collected.connect(_on_collectible_collected)
+	GameEvents.save_completed.connect(_on_save_completed)
 	_on_score_changed(GameManager.score)
 	_on_collectibles_changed(GameManager.collectibles)
 	_on_time_changed(GameManager.time_left)
@@ -34,6 +40,10 @@ func _ready() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("reload_level") and not SceneTransition.busy:
+		get_viewport().set_input_as_handled()
+		GameManager.reload_current_level()
+		return
 	if event.is_action_pressed("pause"):
 		get_tree().paused = not get_tree().paused
 		get_viewport().set_input_as_handled()
@@ -45,6 +55,7 @@ func bind_player(player: ForestMechanic) -> void:
 	player.power_changed.connect(_on_power_changed)
 	_on_health_changed(player.health, player.max_health)
 	_on_power_changed(player.get_power_level(), 2)
+	_on_mobility_changed(player.air_jumps_remaining, player.wall_slide_active)
 
 func bind_boss(boss: GearheartGuardian) -> void:
 	boss_panel.visible = true
@@ -128,3 +139,35 @@ func _on_level_started(level_id: String) -> void:
 func _on_boss_health_changed(current: int, maximum: int) -> void:
 	boss_bar.max_value = maximum
 	boss_bar.value = current
+
+
+func _on_mobility_changed(air_jumps_remaining: int, wall_sliding: bool) -> void:
+	if wall_sliding:
+		ability_label.text = "WALL SLIDE • JUMP!"
+		ability_label.modulate = Color("8ff3ff")
+	elif air_jumps_remaining > 0:
+		ability_label.text = "AIR JUMP READY"
+		ability_label.modulate = Color("b4f6cf")
+	else:
+		ability_label.text = "AIR JUMP USED"
+		ability_label.modulate = Color(1.0, 1.0, 1.0, 0.42)
+
+
+func _on_collectible_collected(_collectible_id: String, _value: int, _heals: bool) -> void:
+	collectible_label.modulate = Color("fff1a3")
+	var flash := create_tween()
+	flash.tween_property(collectible_label, "modulate", Color.WHITE, 0.18)
+
+
+func _on_save_completed(_save_path: String) -> void:
+	if save_message_tween != null and save_message_tween.is_valid():
+		save_message_tween.kill()
+	save_label.visible = true
+	save_label.modulate.a = 1.0
+	save_message_tween = create_tween()
+	save_message_tween.tween_interval(0.55)
+	save_message_tween.tween_property(save_label, "modulate:a", 0.0, 0.35)
+	save_message_tween.tween_callback(func() -> void:
+		save_label.visible = false
+		save_label.modulate.a = 1.0
+	)

@@ -16,6 +16,7 @@ const EXIT_SCENE := preload("res://world/level_exit.tscn")
 const BLOCK_SCENE := preload("res://world/block.tscn")
 const PIPE_SCENE := preload("res://world/pipe.tscn")
 const FLAGPOLE_SCENE := preload("res://world/flagpole.tscn")
+const CACTUS_SCENE := preload("res://world/clockwork_cactus.tscn")
 const SPAWNER_SCENE := preload("res://enemies/enemy_spawner.tscn")
 const BOSS_SCENE := preload("res://enemies/boss.tscn")
 
@@ -39,7 +40,6 @@ func _ready() -> void:
 	if biome == "forest":
 		_add_generated_forest_background()
 	_build_level()
-	player.global_position = spawn_point
 	_configure_camera()
 	GameManager.start_level(
 		level_id,
@@ -47,6 +47,7 @@ func _ready() -> void:
 		spawn_point,
 		level_id == "forest" or level_id == "world_1_1"
 	)
+	player.global_position = GameManager.checkpoint_position
 	player.restore_power_level(GameManager.carried_power_level)
 	hud.bind_player(player)
 	queue_redraw()
@@ -184,13 +185,36 @@ func erase_rect(x: int, y: int, width: int, height: int) -> void:
 
 
 func add_collectible(world_position: Vector2, heals: bool = false) -> GearCoin:
-	return add_entity(COLLECTIBLE_SCENE, world_position, {"heals": heals}) as GearCoin
+	var collectible_id := "%s:%d:%d:%s" % [
+		level_id,
+		roundi(world_position.x),
+		roundi(world_position.y),
+		"heart" if heals else "coin",
+	]
+	return add_entity(COLLECTIBLE_SCENE, world_position, {
+		"heals": heals,
+		"collectible_id": collectible_id,
+	}) as GearCoin
+
+
+func add_checkpoint(world_position: Vector2) -> ForestCheckpoint:
+	return add_entity(CHECKPOINT_SCENE, world_position, {
+		"level_id": level_id,
+	}) as ForestCheckpoint
 
 
 func add_enemy(world_position: Vector2, kind: int, patrol: float = 80.0, respawns: bool = true) -> EnemySpawner:
 	return add_entity(SPAWNER_SCENE, world_position, {
 		"enemy_kind": kind, "patrol_distance": patrol, "respawn_enabled": respawns,
 	}) as EnemySpawner
+
+
+func add_cactus(world_position: Vector2, mobile: bool = false, phase: float = 0.0) -> ClockworkCactus:
+	return add_entity(CACTUS_SCENE, world_position, {
+		"mobile": mobile,
+		"phase_offset": phase,
+		"cycle_duration": 3.8,
+	}) as ClockworkCactus
 
 
 func add_entity(scene: PackedScene, world_position: Vector2, properties: Dictionary = {}) -> Node2D:

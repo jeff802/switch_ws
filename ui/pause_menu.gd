@@ -8,6 +8,7 @@ extends Control
 @onready var character_button: Button = $Panel/CharacterButton
 @onready var character_desc: Label = $Panel/CharacterDesc
 @onready var resume_button: Button = $Panel/ResumeButton
+@onready var restart_button: Button = $Panel/RestartButton
 
 var _initialized := false
 
@@ -19,6 +20,7 @@ func _ready() -> void:
 	volume_slider.value_changed.connect(_on_volume_changed)
 	character_button.pressed.connect(_on_character_pressed)
 	resume_button.pressed.connect(_on_resume_pressed)
+	restart_button.pressed.connect(_on_restart_pressed)
 	SettingsManager.changed.connect(_refresh)
 
 
@@ -72,3 +74,10 @@ func _on_resume_pressed() -> void:
 	AudioManager.play("ui")
 	get_tree().paused = false
 	visible = false
+
+
+func _on_restart_pressed() -> void:
+	AudioManager.play("ui")
+	get_tree().paused = false
+	visible = false
+	GameManager.reload_current_level()

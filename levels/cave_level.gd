@@ -17,13 +17,19 @@ func _build_level() -> void:
 	solid_rect(88, 5, 5, 1, 1)
 	solid_rect(105, 8, 8, 1, 1)
 	solid_rect(120, 6, 7, 1, 1)
+	for brick_x: int in [16, 17, 18, 55, 56, 57, 108, 109, 110]:
+		add_block(Vector2(brick_x * 16 + 8, 7 * 16 + 8), GearBlock.Type.BRICK)
+	add_block(Vector2(19 * 16 + 8, 7 * 16 + 8), GearBlock.Type.QUESTION, GearBlock.Content.COIN)
+	add_block(Vector2(58 * 16 + 8, 7 * 16 + 8), GearBlock.Type.QUESTION, GearBlock.Content.MUSHROOM)
 	add_collectible_arc(Vector2(430, 120), 5)
 	add_collectible_arc(Vector2(835, 112), 6)
 	add_collectible_arc(Vector2(1675, 112), 6)
 	add_enemy(Vector2(245, 174), PooledEnemy.Kind.BOUNCECAP, 60)
-	add_enemy(Vector2(580, 174), PooledEnemy.Kind.BEETLE_BOT, 75)
+	add_enemy(Vector2(580, 174), PooledEnemy.Kind.BOUNCECAP, 62, false)
 	add_enemy(Vector2(1050, 82), PooledEnemy.Kind.GEARWING, 110)
 	add_enemy(Vector2(1570, 174), PooledEnemy.Kind.BOUNCECAP, 80)
+	add_cactus(Vector2(1320, 192), false)
+	add_cactus(Vector2(1980, 192), true, 1.4)
 	add_entity(FALLING_ROCK_SCENE, Vector2(520, 45))
 	add_entity(FALLING_ROCK_SCENE, Vector2(1180, 35))
 	add_entity(FALLING_ROCK_SCENE, Vector2(1810, 50))
@@ -31,10 +37,9 @@ func _build_level() -> void:
 	add_entity(SPIKE_SCENE, Vector2(1430, 184))
 	add_entity(SPRING_SCENE, Vector2(1100, 181), {"launch_strength": 535.0})
 	add_entity(MOVING_PLATFORM_SCENE, Vector2(1475, 137), {"offset": Vector2(0, -68), "travel_time": 2.2})
-	add_entity(CHECKPOINT_SCENE, Vector2(1245, 188))
+	add_checkpoint(Vector2(1245, 188))
 	add_entity(HIDDEN_AREA_SCENE, Vector2(640, 85), {"cover_size": Vector2(90, 64)})
 	add_collectible(Vector2(620, 72), true)
 	add_entity(EXIT_SCENE, Vector2(2180, 188), {
 		"unlock_level_id": "snow", "next_scene": "res://levels/snow_level.tscn",
 	})
-

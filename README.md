@@ -11,8 +11,10 @@ sprites, audio or other protected assets.
 2. Press **F5** to start `res://levels/test_level.tscn`.
 3. The campaign starts at World 1-1 and continues through World 8-4.
 
-Fullscreen is designed for big screens: the game renders at 640×360 and uses
-integer scaling (3× at 1080p, 4× at 1440p) so pixels stay crisp.
+The game uses a 640×360 base resolution and expands responsively to the full
+browser viewport. The HUD and touch controls follow the viewport edges, and
+the in-game **全屏** button switches between browser-window and fullscreen
+play.
 
 Headless project validation:
 

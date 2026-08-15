@@ -156,6 +156,22 @@ max_value = 20.0
 value = 20.0
 show_percentage = false
 
+[node name="FullscreenButton" type="Button" parent="."]
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -68.0
+offset_top = 39.0
+offset_right = -8.0
+offset_bottom = 61.0
+grow_horizontal = 0
+focus_mode = 0
+mouse_default_cursor_shape = 2
+theme_override_font_sizes/font_size = 10
+text = "全屏"
+tooltip_text = "切换浏览器全屏"
+
 [node name="PauseMenu" parent="." instance=ExtResource("3_pause")]
 [node name="VictoryLabel" type="Label" parent="."]
 visible = false
@@ -180,11 +196,15 @@ horizontal_alignment = 1
 
 [node name="SaveLabel" type="Label" parent="."]
 visible = false
-layout_mode = 0
-offset_left = 552.0
-offset_top = 39.0
-offset_right = 632.0
-offset_bottom = 52.0
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -88.0
+offset_top = 72.0
+offset_right = -8.0
+offset_bottom = 85.0
+grow_horizontal = 0
 theme_override_colors/font_color = Color(0.56, 0.95, 1, 1)
 theme_override_colors/font_outline_color = Color(0.03, 0.05, 0.07, 1)
 theme_override_constants/outline_size = 2
@@ -216,46 +236,48 @@ horizontal_alignment = 1
 [node name="MobileControls" type="Node2D" parent="."]
 
 [node name="Pause" parent="MobileControls" instance=ExtResource("2_button")]
-position = Vector2(620, 56)
+position = Vector2(544, 56)
 action = "pause"
 caption = "II"
 tint = Color(0.45, 0.55, 0.58, 1)
-radius = 11.0
+radius = 14.0
 
 [node name="Left" parent="MobileControls" instance=ExtResource("2_button")]
-position = Vector2(28, 332)
+position = Vector2(34, 326)
 action = "move_left"
 caption = "◀"
+radius = 26.0
 
 [node name="Right" parent="MobileControls" instance=ExtResource("2_button")]
-position = Vector2(80, 332)
+position = Vector2(98, 326)
 action = "move_right"
 caption = "▶"
+radius = 26.0
 
 [node name="Run" parent="MobileControls" instance=ExtResource("2_button")]
-position = Vector2(132, 333)
+position = Vector2(534, 326)
 action = "run"
 caption = "RUN"
 tint = Color(0.86, 0.55, 0.29, 1)
-radius = 18.0
+radius = 25.0
 
 [node name="Attack" parent="MobileControls" instance=ExtResource("2_button")]
-position = Vector2(492, 328)
+position = Vector2(470, 326)
 action = "attack"
 caption = "BOLT"
 tint = Color(0.28, 0.72, 0.85, 1)
-radius = 18.0
+radius = 23.0
 
 [node name="Stomp" parent="MobileControls" instance=ExtResource("2_button")]
-position = Vector2(552, 336)
+position = Vector2(565, 266)
 action = "stomp"
 caption = "DOWN"
 tint = Color(0.66, 0.39, 0.67, 1)
-radius = 17.0
+radius = 23.0
 
 [node name="Jump" parent="MobileControls" instance=ExtResource("2_button")]
-position = Vector2(608, 294)
+position = Vector2(602, 322)
 action = "jump"
 caption = "JUMP"
 tint = Color(0.35, 0.76, 0.54, 1)
-radius = 22.0
+radius = 28.0

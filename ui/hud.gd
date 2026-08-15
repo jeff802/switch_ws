@@ -16,6 +16,7 @@ extends CanvasLayer
 @onready var controls_hint: Label = $ControlsHint
 @onready var ability_label: Label = $TopBar/AbilityLabel
 @onready var save_label: Label = $SaveLabel
+@onready var fullscreen_button: Button = $FullscreenButton
 
 var bound_player: ForestMechanic
 var path_message_tween: Tween
@@ -37,6 +38,10 @@ func _ready() -> void:
 	_on_level_started(GameManager.current_level_id)
 	mobile_controls.visible = force_virtual_controls or DisplayServer.is_touchscreen_available() or OS.has_feature("mobile")
 	controls_hint.visible = not mobile_controls.visible
+	fullscreen_button.pressed.connect(_on_fullscreen_pressed)
+	get_tree().root.size_changed.connect(_on_window_size_changed)
+	_refresh_fullscreen_button()
+	_update_mobile_controls_layout()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -171,3 +176,38 @@ func _on_save_completed(_save_path: String) -> void:
 		save_label.visible = false
 		save_label.modulate.a = 1.0
 	)
+
+
+func _on_fullscreen_pressed() -> void:
+	DisplayServer.window_set_mode(
+		DisplayServer.WINDOW_MODE_WINDOWED if _is_fullscreen() else DisplayServer.WINDOW_MODE_FULLSCREEN
+	)
+	call_deferred("_refresh_fullscreen_button")
+
+
+func _on_window_size_changed() -> void:
+	call_deferred("_refresh_fullscreen_button")
+	call_deferred("_update_mobile_controls_layout")
+
+
+func _refresh_fullscreen_button() -> void:
+	fullscreen_button.text = "退出" if _is_fullscreen() else "全屏"
+
+
+func _is_fullscreen() -> bool:
+	var mode := DisplayServer.window_get_mode()
+	return mode == DisplayServer.WINDOW_MODE_FULLSCREEN \
+		or mode == DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN
+
+
+func _update_mobile_controls_layout() -> void:
+	if not mobile_controls.visible:
+		return
+	var viewport_size := get_viewport().get_visible_rect().size
+	$MobileControls/Pause.position = Vector2(viewport_size.x - 96.0, 56.0)
+	$MobileControls/Left.position = Vector2(34.0, viewport_size.y - 34.0)
+	$MobileControls/Right.position = Vector2(98.0, viewport_size.y - 34.0)
+	$MobileControls/Attack.position = Vector2(viewport_size.x - 170.0, viewport_size.y - 34.0)
+	$MobileControls/Run.position = Vector2(viewport_size.x - 106.0, viewport_size.y - 34.0)
+	$MobileControls/Stomp.position = Vector2(viewport_size.x - 75.0, viewport_size.y - 94.0)
+	$MobileControls/Jump.position = Vector2(viewport_size.x - 38.0, viewport_size.y - 38.0)

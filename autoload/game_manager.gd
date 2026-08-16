@@ -1,10 +1,15 @@
 extends Node
 
+const CAMPAIGN_STAGE_COUNT := 20
+const LAST_CAMPAIGN_STAGE := CAMPAIGN_STAGE_COUNT - 1
+const CAMPAIGN_SCENE := "res://levels/campaign_level.tscn"
+
 signal score_changed(value: int)
 signal collectibles_changed(value: int)
 signal time_changed(value: float)
 signal level_started(level_id: String)
 signal time_expired
+signal reserve_bloom_changed(count: int)
 
 var score: int = 0
 var collectibles: int = 0
@@ -13,6 +18,7 @@ var current_level_id: String = "forest"
 var checkpoint_position: Vector2 = Vector2.ZERO
 var run_active: bool = false
 var carried_power_level: int = 0
+var carried_reserve_bloom_count: int = 0
 var campaign_stage: int = 0
 var persistence_enabled: bool = true
 
@@ -21,6 +27,7 @@ func _ready() -> void:
 	score = SaveManager.run_score
 	collectibles = SaveManager.run_collectibles
 	carried_power_level = SaveManager.carried_power_level
+	carried_reserve_bloom_count = SaveManager.carried_reserve_bloom_count
 	campaign_stage = SaveManager.campaign_stage
 	GameEvents.collectible_collected.connect(_on_collectible_collected)
 
@@ -45,6 +52,7 @@ func start_level(level_id: String, time_limit: float, spawn: Vector2, reset_scor
 		score = 0
 		collectibles = 0
 		carried_power_level = 0
+		carried_reserve_bloom_count = 0
 	score_changed.emit(score)
 	collectibles_changed.emit(collectibles)
 	time_changed.emit(time_left)
@@ -73,7 +81,8 @@ func set_checkpoint(world_position: Vector2) -> void:
 			campaign_stage,
 			score,
 			collectibles,
-			carried_power_level
+			carried_power_level,
+			carried_reserve_bloom_count
 		)
 	GameEvents.checkpoint_activated.emit(current_level_id, checkpoint_position)
 
@@ -82,22 +91,56 @@ func set_carried_power_level(level: int) -> void:
 	carried_power_level = clampi(level, 0, 2)
 
 
+func set_carried_reserve_bloom_count(count: int) -> void:
+	count = clampi(count, 0, 2)
+	if carried_reserve_bloom_count == count:
+		return
+	carried_reserve_bloom_count = count
+	reserve_bloom_changed.emit(carried_reserve_bloom_count)
+
+
 func set_campaign_stage(stage: int, persist: bool = false) -> void:
-	campaign_stage = clampi(stage, 0, 31)
+	campaign_stage = clampi(stage, 0, LAST_CAMPAIGN_STAGE)
 	if persist:
 		_persist_run()
 
 
+func select_campaign_stage(stage: int) -> void:
+	if SceneTransition.busy:
+		return
+	get_tree().paused = false
+	run_active = false
+	if persistence_enabled:
+		SaveManager.submit_score(score)
+	campaign_stage = clampi(stage, 0, LAST_CAMPAIGN_STAGE)
+	# 选关按一次新的单关挑战处理：保留已通关记录和最高分，但清空本次分数、
+	# 检查点与携带能力，避免从别的关卡把出生点或状态带过来。
+	score = 0
+	collectibles = 0
+	carried_power_level = 0
+	carried_reserve_bloom_count = 0
+	checkpoint_position = Vector2.ZERO
+	if persistence_enabled:
+		SaveManager.clear_checkpoint(false)
+		SaveManager.save_run_progress(
+			campaign_stage, score, collectibles, carried_power_level, carried_reserve_bloom_count
+		)
+	score_changed.emit(score)
+	collectibles_changed.emit(collectibles)
+	SceneTransition.change_scene(CAMPAIGN_SCENE)
+
+
 func advance_campaign_stage() -> void:
 	var completed_level := current_level_id
-	campaign_stage = mini(campaign_stage + 1, 31)
+	campaign_stage = mini(campaign_stage + 1, LAST_CAMPAIGN_STAGE)
 	if persistence_enabled:
 		SaveManager.complete_stage(
 			completed_level,
 			campaign_stage,
 			score,
 			collectibles,
-			carried_power_level
+			carried_power_level,
+			carried_reserve_bloom_count
 		)
 	GameEvents.campaign_progressed.emit(campaign_stage)
 
@@ -106,12 +149,13 @@ func complete_campaign() -> void:
 	if persistence_enabled:
 		SaveManager.complete_stage(
 			current_level_id,
-			31,
+			LAST_CAMPAIGN_STAGE,
 			score,
 			collectibles,
-			carried_power_level
+			carried_power_level,
+			carried_reserve_bloom_count
 		)
-	GameEvents.campaign_progressed.emit(31)
+	GameEvents.campaign_progressed.emit(LAST_CAMPAIGN_STAGE)
 
 
 func respawn_player(player: Node2D) -> void:
@@ -162,5 +206,6 @@ func _persist_run() -> void:
 		campaign_stage,
 		score,
 		collectibles,
-		carried_power_level
+		carried_power_level,
+		carried_reserve_bloom_count
 	)

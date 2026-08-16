@@ -5,7 +5,7 @@
 [ext_resource type="Shader" path="res://player/power_palette.gdshader" id="3_power_palette"]
 
 [sub_resource type="CapsuleShape2D" id="Capsule_player"]
-radius = 8.0
+radius = 6.5
 height = 25.0
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_power_palette"]

@@ -28,12 +28,14 @@ func _process(delta: float) -> void:
 
 
 func _on_body_entered(body: Node2D) -> void:
-	if collected or not body.is_in_group("player") or not body.has_method("grant_orb_power"):
+	if collected or not body.is_in_group("player") or not body.has_method("collect_energy_bloom"):
 		return
 	collected = true
 	monitoring = false
-	body.grant_orb_power()
-	GameManager.add_score(1000)
+	var result: int = body.collect_energy_bloom()
+	# 首朵用于激活，之后两朵可进入双格备用栏；只有当前能力与
+	# 两格备用栏都已满时，才把溢出的能力花转换为更高奖励分数。
+	GameManager.add_score(1500 if result == ForestMechanic.BloomPickupResult.SCORE_ONLY else 1000)
 	var tween := create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
 	tween.tween_property(self, "scale", Vector2(1.8, 1.8), 0.12)
 	tween.parallel().tween_property(self, "modulate:a", 0.0, 0.12)

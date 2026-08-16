@@ -1,8 +1,9 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://ui/hud.gd" id="1_hud"]
 [ext_resource type="PackedScene" path="res://ui/virtual_button.tscn" id="2_button"]
 [ext_resource type="PackedScene" path="res://ui/pause_menu.tscn" id="3_pause"]
+[ext_resource type="PackedScene" path="res://ui/start_setup.tscn" id="4_start"]
 
 [node name="HUD" type="CanvasLayer"]
 layer = 20
@@ -37,7 +38,7 @@ offset_bottom = 33.0
 grow_horizontal = 0
 theme_override_colors/font_color = Color(0.85, 0.95, 1, 1)
 theme_override_font_sizes/font_size = 8
-text = "WORLD 1-1"
+text = "第 01 关 / 20"
 horizontal_alignment = 2
 
 [node name="HealthTitle" type="Label" parent="TopBar"]
@@ -48,7 +49,7 @@ offset_right = 51.0
 offset_bottom = 33.0
 theme_override_colors/font_color = Color(0.96, 0.48, 0.38, 1)
 theme_override_font_sizes/font_size = 8
-text = "HEALTH"
+text = "生命"
 
 [node name="HealthBar" type="ProgressBar" parent="TopBar"]
 layout_mode = 0
@@ -68,19 +69,20 @@ offset_right = 112.0
 offset_bottom = 33.0
 theme_override_colors/font_color = Color(0.35, 0.82, 0.68, 1)
 theme_override_font_sizes/font_size = 7
-text = "PWR SMALL"
+text = "状态：小型"
 
 [node name="StaminaBar" type="ProgressBar" parent="TopBar"]
 layout_mode = 0
 offset_left = 70.0
-offset_top = 24.0
+offset_top = 13.0
 offset_right = 104.0
-offset_bottom = 31.0
+offset_bottom = 20.0
 max_value = 2.0
 value = 0.0
 show_percentage = false
 
 [node name="AbilityLabel" type="Label" parent="TopBar"]
+visible = false
 layout_mode = 0
 offset_left = 113.0
 offset_top = 22.0
@@ -88,7 +90,7 @@ offset_right = 224.0
 offset_bottom = 33.0
 theme_override_colors/font_color = Color(0.71, 0.96, 0.81, 1)
 theme_override_font_sizes/font_size = 7
-text = "AIR JUMP READY"
+text = ""
 
 [node name="ScoreLabel" type="Label" parent="TopBar"]
 layout_mode = 0
@@ -98,7 +100,7 @@ offset_right = 196.0
 offset_bottom = 20.0
 theme_override_colors/font_color = Color(1, 1, 1, 1)
 theme_override_font_sizes/font_size = 11
-text = "SCORE 0000000"
+text = "分数 0000000"
 
 [node name="CollectibleLabel" type="Label" parent="TopBar"]
 layout_mode = 1
@@ -112,7 +114,7 @@ offset_bottom = 19.0
 grow_horizontal = 2
 theme_override_colors/font_color = Color(1, 0.87, 0.45, 1)
 theme_override_font_sizes/font_size = 11
-text = "COINS × 00"
+text = "金币 × 00"
 horizontal_alignment = 1
 
 [node name="TimerLabel" type="Label" parent="TopBar"]
@@ -127,8 +129,23 @@ offset_bottom = 19.0
 grow_horizontal = 0
 theme_override_colors/font_color = Color(1, 1, 1, 1)
 theme_override_font_sizes/font_size = 11
-text = "TIME 180"
+text = "时间 180"
 horizontal_alignment = 2
+
+[node name="ReserveBloomButton" type="Button" parent="TopBar"]
+layout_mode = 0
+offset_left = 386.0
+offset_top = 3.0
+offset_right = 530.0
+offset_bottom = 22.0
+focus_mode = 0
+mouse_default_cursor_shape = 2
+theme_override_colors/font_color = Color(0.72, 1, 0.9, 1)
+theme_override_colors/font_disabled_color = Color(0.62, 0.68, 0.7, 0.8)
+theme_override_font_sizes/font_size = 8
+disabled = true
+text = "备用花：0 / 2"
+tooltip_text = "能量状态下继续拾取能力花，最多可储存两朵"
 
 [node name="BossPanel" type="Control" parent="."]
 visible = false
@@ -144,7 +161,7 @@ offset_right = 200.0
 offset_bottom = 10.0
 theme_override_colors/font_color = Color(1, 0.75, 0.4, 1)
 theme_override_font_sizes/font_size = 8
-text = "GEARHEART GUARDIAN"
+text = "区域守卫"
 horizontal_alignment = 1
 
 [node name="BossBar" type="ProgressBar" parent="BossPanel"]
@@ -172,7 +189,24 @@ theme_override_font_sizes/font_size = 10
 text = "全屏"
 tooltip_text = "切换浏览器全屏"
 
+[node name="MenuButton" type="Button" parent="."]
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -164.0
+offset_top = 39.0
+offset_right = -74.0
+offset_bottom = 61.0
+grow_horizontal = 0
+focus_mode = 0
+mouse_default_cursor_shape = 2
+theme_override_font_sizes/font_size = 10
+text = "选关 / 设置"
+tooltip_text = "打开设置、选关与暂停菜单"
+
 [node name="PauseMenu" parent="." instance=ExtResource("3_pause")]
+[node name="StartSetup" parent="." instance=ExtResource("4_start")]
 [node name="VictoryLabel" type="Label" parent="."]
 visible = false
 layout_mode = 1
@@ -191,7 +225,7 @@ theme_override_colors/font_color = Color(1, 0.82, 0.42, 1)
 theme_override_colors/font_outline_color = Color(0.03, 0.05, 0.07, 1)
 theme_override_constants/outline_size = 5
 theme_override_font_sizes/font_size = 17
-text = "FOUNDRY RESTORED!\nRUN COMPLETE"
+text = "熔炉已恢复！\n本次挑战完成"
 horizontal_alignment = 1
 
 [node name="SaveLabel" type="Label" parent="."]
@@ -209,8 +243,43 @@ theme_override_colors/font_color = Color(0.56, 0.95, 1, 1)
 theme_override_colors/font_outline_color = Color(0.03, 0.05, 0.07, 1)
 theme_override_constants/outline_size = 2
 theme_override_font_sizes/font_size = 8
-text = "SAVED ✓"
+text = "已保存 ✓"
 horizontal_alignment = 2
+
+[node name="AreaBanner" type="Label" parent="."]
+visible = false
+layout_mode = 0
+offset_left = 160.0
+offset_top = 77.0
+offset_right = 480.0
+offset_bottom = 105.0
+theme_override_colors/font_color = Color(0.62, 1, 0.9, 1)
+theme_override_colors/font_outline_color = Color(0.02, 0.08, 0.1, 1)
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 15
+text = "奖励副本 · 齿轮地窖"
+horizontal_alignment = 1
+
+[node name="ContextHint" type="Label" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -230.0
+offset_top = -98.0
+offset_right = 230.0
+offset_bottom = -70.0
+grow_horizontal = 2
+grow_vertical = 0
+theme_override_colors/font_color = Color(0.72, 1, 0.88, 1)
+theme_override_colors/font_outline_color = Color(0.02, 0.08, 0.1, 1)
+theme_override_constants/outline_size = 3
+theme_override_font_sizes/font_size = 11
+text = "↓ / S / 手柄下方向：进入奖励地窖"
+horizontal_alignment = 1
 
 [node name="ControlsHint" type="Label" parent="."]
 visible = false
@@ -230,7 +299,7 @@ theme_override_colors/font_color = Color(1, 1, 1, 0.55)
 theme_override_colors/font_outline_color = Color(0.03, 0.05, 0.07, 1)
 theme_override_constants/outline_size = 2
 theme_override_font_sizes/font_size = 7
-text = "A/D MOVE  SPACE JUMP×2  K RUN  J BOLT  S STOMP  R RELOAD"
+text = "A/D 移动  空格 跳跃  K 加速  J 发射  S 下砸  R 重载  Esc 设置/选关"
 horizontal_alignment = 1
 
 [node name="MobileControls" type="Node2D" parent="."]
@@ -238,46 +307,46 @@ horizontal_alignment = 1
 [node name="Pause" parent="MobileControls" instance=ExtResource("2_button")]
 position = Vector2(544, 56)
 action = "pause"
-caption = "II"
+caption = "暂停"
 tint = Color(0.45, 0.55, 0.58, 1)
-radius = 14.0
+radius = 19.0
 
 [node name="Left" parent="MobileControls" instance=ExtResource("2_button")]
 position = Vector2(34, 326)
 action = "move_left"
-caption = "◀"
-radius = 26.0
+caption = ""
+radius = 34.0
 
 [node name="Right" parent="MobileControls" instance=ExtResource("2_button")]
 position = Vector2(98, 326)
 action = "move_right"
-caption = "▶"
-radius = 26.0
+caption = ""
+radius = 34.0
 
 [node name="Run" parent="MobileControls" instance=ExtResource("2_button")]
 position = Vector2(534, 326)
 action = "run"
-caption = "RUN"
+caption = "跑"
 tint = Color(0.86, 0.55, 0.29, 1)
-radius = 25.0
+radius = 31.0
 
 [node name="Attack" parent="MobileControls" instance=ExtResource("2_button")]
 position = Vector2(470, 326)
 action = "attack"
-caption = "BOLT"
+caption = "弹"
 tint = Color(0.28, 0.72, 0.85, 1)
-radius = 23.0
+radius = 30.0
 
 [node name="Stomp" parent="MobileControls" instance=ExtResource("2_button")]
 position = Vector2(565, 266)
 action = "stomp"
-caption = "DOWN"
+caption = "砸"
 tint = Color(0.66, 0.39, 0.67, 1)
-radius = 23.0
+radius = 30.0
 
 [node name="Jump" parent="MobileControls" instance=ExtResource("2_button")]
 position = Vector2(602, 322)
 action = "jump"
-caption = "JUMP"
+caption = "跳"
 tint = Color(0.35, 0.76, 0.54, 1)
-radius = 28.0
+radius = 36.0

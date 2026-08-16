@@ -1,0 +1,24 @@
+services:
+  web:
+    image: nginx:1.29-alpine
+    container_name: forest-gear-web
+    restart: unless-stopped
+    ports:
+      # Keep Lucky's loopback access while also accepting IPv4 LAN clients.
+      - "0.0.0.0:18080:80"
+    volumes:
+      - /volume1/docker/forest-gear:/src:ro
+    command:
+      - /bin/sh
+      - -c
+      - >-
+        cp -a /src/. /usr/share/nginx/html/ &&
+        chmod -R a+rX /usr/share/nginx/html &&
+        exec nginx -g 'daemon off;'
+    read_only: true
+    tmpfs:
+      - /usr/share/nginx/html
+      - /var/cache/nginx
+      - /var/run
+    security_opt:
+      - no-new-privileges:true

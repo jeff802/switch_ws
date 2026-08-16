@@ -1,12 +1,30 @@
 extends ForestGearLevel
 
+## 二十关制战役。每一关都使用独立编排，后十关继续引入新材质、
+## 复合墙体、隐藏补给比例与首领技能，而不是复制前十关的区段。
 const CAMPAIGN_SCENE := "res://levels/campaign_level.tscn"
-const WORLD_BIOMES: Array[String] = [
-	"forest", "cave", "snow", "city", "forest", "cave", "snow", "city",
+const STAGE_COUNT := 20
+const STAGE_BIOMES: Array[String] = [
+	"forest", "forest", "cave", "snow", "city",
+	"forest", "cave", "snow", "city", "city",
+	"ruins", "cave", "city", "snow", "volcano",
+	"cave", "ruins", "night", "city", "volcano",
 ]
+const STAGE_WIDTHS: Array[int] = [
+	128, 138, 144, 140, 146, 160, 142, 150, 158, 128,
+	152, 158, 146, 162, 166, 150, 164, 154, 170, 142,
+]
+const STAGE_TIMES: Array[float] = [
+	185.0, 185.0, 220.0, 190.0, 195.0, 230.0, 200.0, 195.0, 205.0, 240.0,
+	205.0, 215.0, 245.0, 220.0, 225.0, 255.0, 230.0, 250.0, 235.0, 285.0,
+]
+const STAGE_BLOCK_THEMES: Array[int] = [
+	0, 0, 1, 2, 3, 0, 1, 2, 3, 4,
+	5, 1, 6, 2, 6, 7, 5, 8, 3, 9,
+]
+enum BlockPattern { ROW, WAVE, STEPS, CROWN, SPLIT }
 
 var stage_index: int = 0
-var world_number: int = 1
 var stage_number: int = 1
 var pit_ranges: Array[Vector2i] = []
 var boss: GearheartGuardian
@@ -15,238 +33,639 @@ var arena_gate_collision: CollisionShape2D
 var final_exit: LevelExit
 var occupied_block_positions: Dictionary = {}
 var occupied_coin_positions: Dictionary = {}
+var used_block_patterns: Dictionary = {}
+var enemy_spawn_counter: int = 0
+var collectible_spawn_counter: int = 0
 
 
 func _enter_tree() -> void:
-	stage_index = clampi(GameManager.campaign_stage, 0, 31)
-	world_number = stage_index / 4 + 1
-	stage_number = stage_index % 4 + 1
-	biome = WORLD_BIOMES[world_number - 1]
-	level_id = "world_%d_%d" % [world_number, stage_number]
-	time_limit = maxf(150.0, 230.0 - float(world_number - 1) * 8.0)
+	stage_index = clampi(GameManager.campaign_stage, 0, STAGE_COUNT - 1)
+	stage_number = stage_index + 1
+	biome = STAGE_BIOMES[stage_index]
+	level_id = "stage_%02d" % stage_number
+	time_limit = STAGE_TIMES[stage_index]
 	spawn_point = Vector2(64, 150)
-	level_width_tiles = 120 + world_number * 5 if stage_number == 4 else 138 + world_number * 6 + stage_number * 4
+	level_width_tiles = STAGE_WIDTHS[stage_index]
 
 
 func _build_level() -> void:
-	if stage_number == 4:
-		_build_boss_stage()
-	else:
-		_build_standard_stage()
+	match stage_number:
+		1: _build_meadow_tutorial()
+		2: _build_broken_bridge()
+		3: _build_deep_cavern()
+		4: _build_snowy_steps()
+		5: _build_rooftop_run()
+		6: _build_pipe_garden()
+		7: _build_crystal_lifts()
+		8: _build_frozen_crossing()
+		9: _build_foundry_gauntlet()
+		10: _build_final_stronghold()
+		11: _build_ruined_canopy()
+		12: _build_echo_mines()
+		13: _build_storm_foundry()
+		14: _build_glacier_switchbacks()
+		15: _build_magma_aqueduct()
+		16: _build_core_descent()
+		17: _build_overgrown_clocktower()
+		18: _build_lunar_frost_keep()
+		19: _build_royal_gearway()
+		_: _build_chrono_throne()
+	_apply_difficulty_support()
 
 
-func _build_standard_stage() -> void:
-	solid_rect(0, 12, level_width_tiles, 4, 0)
-	_build_pits()
-	_build_platform_route()
-	_build_obstacles()
-	_build_enemies_and_hazards()
-	var checkpoint_cell := _nearest_safe_cell(level_width_tiles / 2)
-	add_checkpoint(Vector2(checkpoint_cell * TILE_SIZE + 8, 188))
-	var flag := add_flag(
-		Vector2(level_width_tiles * TILE_SIZE - 50, 188),
-		"",
-		CAMPAIGN_SCENE
-	)
+func _build_meadow_tutorial() -> void:
+	_build_ground()
+	_add_block_row(15, 8, 5, 2, GearBlock.Content.MUSHROOM)
+	_add_coin_line(12, 158, 3)
+	_add_coin_arc_cells(17, 102, 5, 15.0, 14.0)
+	_add_ground_enemy(29, PooledEnemy.Kind.BOUNCECAP, 42.0)
+	add_pipe(Vector2(40 * TILE_SIZE + 8, 192), 40.0, GearPipe.TravelMode.ENTER_BONUS, 0)
+	_add_stone_platform(49, 9, 5, 2, true)
+	_add_coin_line(49, 132, 5)
+	_add_ground_enemy(58, PooledEnemy.Kind.WADDLEDUCK, 54.0)
+	_add_block_row(66, 8, 4, 1, GearBlock.Content.MULTI_COIN, false, BlockPattern.WAVE)
+	add_checkpoint(Vector2(75 * TILE_SIZE + 8, 188))
+	_cut_pit(85, 2, true)
+	_add_block_row(94, 7, 6, 3, GearBlock.Content.MUSHROOM, false, BlockPattern.WAVE)
+	_add_coin_arc_cells(97, 92, 6, 15.0, 17.0)
+	_add_spring(108, 470.0)
+	_add_vertical_coins(108, 148, 4, 18)
+	_add_ground_enemy(115, PooledEnemy.Kind.BOUNCECAP, 38.0)
+	_finish_standard_stage()
+
+
+func _build_broken_bridge() -> void:
+	_build_ground()
+	_add_block_row(12, 8, 6, 2, GearBlock.Content.MUSHROOM, false, BlockPattern.STEPS)
+	_add_ground_enemy(20, PooledEnemy.Kind.WADDLEDUCK, 48.0)
+	_cut_pit(27, 3, true)
+	_add_spring(37, 510.0)
+	_add_stone_platform(40, 7, 7, 2, true)
+	_add_coin_arc_cells(43, 92, 7, 15.0, 18.0)
+	_add_ground_enemy(48, PooledEnemy.Kind.SHELLBACK, 30.0)
+	_cut_pit(54, 5, true, true)
+	_add_ground_enemy(65, PooledEnemy.Kind.BOUNCECAP, 42.0)
+	_add_block_row(70, 8, 5, 2, GearBlock.Content.MULTI_COIN, false, BlockPattern.CROWN)
+	add_checkpoint(Vector2(78 * TILE_SIZE + 8, 188))
+	_cut_pit(88, 4, true, true)
+	_add_stone_platform(96, 9, 4)
+	_add_stone_platform(102, 7, 4, 2, true)
+	_add_coin_arc_cells(103, 92, 6, 15.0, 20.0)
+	_add_ground_enemy(109, PooledEnemy.Kind.WADDLEDUCK, 40.0)
+	_cut_pit(116, 3, true)
+	_add_block_row(123, 8, 5, 2, GearBlock.Content.MUSHROOM, false, BlockPattern.SPLIT)
+	_finish_standard_stage()
+
+
+func _build_deep_cavern() -> void:
+	_build_ground(1)
+	_add_spring(13, 535.0)
+	_add_stone_platform(16, 9, 7)
+	_add_stone_platform(27, 7, 6, 2, true)
+	_add_stone_platform(38, 5, 6)
+	_add_coin_line(16, 132, 7)
+	_add_coin_line(27, 100, 6)
+	_add_coin_line(38, 68, 6)
+	_add_block_row(48, 8, 5, 2, GearBlock.Content.MUSHROOM, false, BlockPattern.WAVE)
+	_cut_pit(58, 3, true)
+	_add_enemy_at(64, 110, PooledEnemy.Kind.GEARWING, 78.0)
+	_add_ground_enemy(70, PooledEnemy.Kind.BOUNCECAP, 42.0)
+	add_checkpoint(Vector2(76 * TILE_SIZE + 8, 188))
+	_add_spring(82, 520.0)
+	_add_stone_platform(86, 7, 8)
+	_add_block_row(87, 3, 5, 2, GearBlock.Content.MUSHROOM)
+	_cut_pit(99, 4, true, true)
+	_add_stone_platform(107, 9, 4, 2, true)
+	_add_stone_platform(113, 7, 4)
+	_add_ground_enemy(123, PooledEnemy.Kind.WADDLEDUCK, 36.0)
+	_add_coin_arc_cells(116, 94, 7, 15.0, 20.0)
+	_finish_boss_stage(GearheartGuardian.Variant.CAVERN_DRILLER, 132, 138, 12)
+
+
+func _build_snowy_steps() -> void:
+	_build_ground()
+	_add_block_row(13, 8, 5, 1, GearBlock.Content.MUSHROOM, false, BlockPattern.STEPS)
+	_add_stone_platform(23, 10, 3)
+	_add_stone_platform(27, 9, 3, 2, true)
+	_add_stone_platform(31, 8, 3)
+	_add_stone_platform(35, 7, 4, 2, true)
+	_add_coin_arc_cells(32, 102, 8, 14.0, 22.0)
+	_add_ground_enemy(42, PooledEnemy.Kind.WADDLEDUCK, 50.0)
+	_cut_pit(49, 4, true, true)
+	_add_ground_enemy(55, PooledEnemy.Kind.SHELLBACK, 28.0)
+	_add_entity_falling_rock(59)
+	_add_block_row(62, 7, 6, 3, GearBlock.Content.MULTI_COIN, false, BlockPattern.CROWN)
+	add_checkpoint(Vector2(72 * TILE_SIZE + 8, 188))
+	_add_spring(79, 545.0)
+	_add_stone_platform(83, 6, 7, 2, true)
+	_add_coin_line(83, 84, 7)
+	_add_enemy_at(93, 105, PooledEnemy.Kind.GEARWING, 74.0)
+	_cut_pit(102, 5, true, true)
+	_add_entity_falling_rock(113)
+	_add_ground_enemy(118, PooledEnemy.Kind.BOUNCECAP, 46.0)
+	_add_block_row(123, 8, 5, 2, GearBlock.Content.MUSHROOM, false, BlockPattern.WAVE)
+	_finish_standard_stage()
+
+
+func _build_rooftop_run() -> void:
+	_build_ground(3)
+	_add_stone_platform(12, 9, 8, 3)
+	_add_block_row(14, 5, 5, 2, GearBlock.Content.MUSHROOM, false, BlockPattern.CROWN)
+	_cut_pit(26, 5, true, true)
+	_add_ground_enemy(36, PooledEnemy.Kind.WADDLEDUCK, 56.0)
+	_add_stone_platform(42, 8, 8, 3, true)
+	_add_coin_arc_cells(46, 106, 8, 15.0, 18.0)
+	_cut_pit(56, 6, true, true)
+	_add_enemy_at(66, 112, PooledEnemy.Kind.GEARWING, 92.0)
+	_add_block_row(69, 8, 6, 1, GearBlock.Content.COIN, false, BlockPattern.WAVE)
+	add_checkpoint(Vector2(79 * TILE_SIZE + 8, 188))
+	_add_stone_platform(84, 6, 7, 3, true)
+	_add_spring(82, 540.0)
+	_add_coin_line(84, 84, 7)
+	_cut_pit(96, 4, true, true)
+	_add_ground_enemy(105, PooledEnemy.Kind.BEETLE_BOT, 48.0)
+	_add_ground_enemy(112, PooledEnemy.Kind.WADDLEDUCK, 48.0)
+	add_entity(HIDDEN_AREA_SCENE, Vector2(119 * TILE_SIZE, 122), {"cover_size": Vector2(96, 70)})
+	_add_block_row(122, 7, 6, 3, GearBlock.Content.MUSHROOM, true, BlockPattern.SPLIT)
+	_add_coin_arc_cells(127, 92, 7, 14.0, 18.0)
+	_finish_standard_stage()
+
+
+func _build_pipe_garden() -> void:
+	_build_ground()
+	_add_block_row(12, 8, 5, 2, GearBlock.Content.MUSHROOM, false, BlockPattern.CROWN)
+	add_pipe(Vector2(25 * TILE_SIZE + 8, 192), 40.0)
+	_add_ground_enemy(34, PooledEnemy.Kind.WADDLEDUCK, 48.0)
+	add_cactus(Vector2(45 * TILE_SIZE + 8, 192), false)
+	_add_coin_arc_cells(45, 126, 5, 15.0, 16.0)
+	_cut_pit(56, 3, true)
+	_add_block_row(63, 7, 6, 2, GearBlock.Content.MULTI_COIN, true, BlockPattern.WAVE)
+	_add_ground_enemy(71, PooledEnemy.Kind.SHELLBACK, 32.0)
+	add_checkpoint(Vector2(75 * TILE_SIZE + 8, 188))
+	add_cactus(Vector2(84 * TILE_SIZE + 8, 192), true, 1.35)
+	_add_spring(94, 510.0)
+	_add_stone_platform(98, 7, 7, 2, true)
+	_add_coin_line(98, 100, 7)
+	add_pipe(Vector2(111 * TILE_SIZE + 8, 192), 56.0, GearPipe.TravelMode.ENTER_BONUS, 1)
+	_add_ground_enemy(120, PooledEnemy.Kind.BOUNCECAP, 48.0)
+	_cut_pit(128, 4, true, true)
+	_add_block_row(136, 8, 5, 2, GearBlock.Content.MUSHROOM, false, BlockPattern.STEPS)
+	_finish_boss_stage(GearheartGuardian.Variant.THORN_REACTOR, 148, 154, 18)
+
+
+func _build_crystal_lifts() -> void:
+	_build_ground(1)
+	_add_spring(12, 565.0)
+	_add_stone_platform(16, 8, 6)
+	_add_stone_platform(27, 5, 7, 2, true)
+	_add_coin_arc_cells(29, 76, 7, 14.0, 18.0)
+	_add_enemy_at(39, 100, PooledEnemy.Kind.GEARWING, 82.0)
+	_cut_pit(45, 5, true, true)
+	_add_block_row(55, 8, 5, 2, GearBlock.Content.MUSHROOM, false, BlockPattern.WAVE)
+	_add_ground_enemy(64, PooledEnemy.Kind.BOUNCECAP, 45.0)
+	add_checkpoint(Vector2(72 * TILE_SIZE + 8, 188))
+	_add_spring(78, 550.0)
+	_add_stone_platform(82, 7, 5, 2, true)
+	_add_stone_platform(91, 5, 6)
+	_add_coin_line(91, 68, 6)
+	add_entity(HIDDEN_AREA_SCENE, Vector2(99 * TILE_SIZE, 92), {"cover_size": Vector2(112, 76)})
+	_cut_pit(104, 4, true, true)
+	_add_enemy_at(114, 108, PooledEnemy.Kind.GEARWING, 76.0)
+	_add_ground_enemy(121, PooledEnemy.Kind.WADDLEDUCK, 46.0)
+	_add_block_row(127, 7, 5, 1, GearBlock.Content.MUSHROOM, true, BlockPattern.SPLIT)
+	_finish_standard_stage()
+
+
+func _build_frozen_crossing() -> void:
+	_build_ground()
+	_add_block_row(12, 8, 6, 2, GearBlock.Content.MUSHROOM, false, BlockPattern.STEPS)
+	_add_ground_enemy(23, PooledEnemy.Kind.WADDLEDUCK, 54.0)
+	_cut_pit(31, 5, true, true)
+	_add_stone_platform(40, 9, 4, 2, true)
+	_add_stone_platform(46, 7, 4)
+	_add_entity_falling_rock(43)
+	_add_coin_arc_cells(47, 98, 7, 15.0, 22.0)
+	_cut_pit(57, 6, true, true)
+	_add_ground_enemy(69, PooledEnemy.Kind.BOUNCECAP, 46.0)
+	add_checkpoint(Vector2(77 * TILE_SIZE + 8, 188))
+	_add_ground_enemy(80, PooledEnemy.Kind.SHELLBACK, 28.0)
+	_add_spring(84, 535.0)
+	_add_stone_platform(88, 6, 7, 2, true)
+	_add_enemy_at(98, 108, PooledEnemy.Kind.GEARWING, 86.0)
+	_cut_pit(105, 5, true, true)
+	_add_entity_falling_rock(116)
+	_add_ground_enemy(122, PooledEnemy.Kind.WADDLEDUCK, 48.0)
+	_add_block_row(128, 8, 6, 3, GearBlock.Content.MUSHROOM, false, BlockPattern.WAVE)
+	_add_coin_arc_cells(132, 102, 7, 14.0, 18.0)
+	_finish_standard_stage()
+
+
+func _build_foundry_gauntlet() -> void:
+	_build_ground(3)
+	_add_block_row(11, 8, 6, 2, GearBlock.Content.MUSHROOM, false, BlockPattern.CROWN)
+	_add_ground_enemy(22, PooledEnemy.Kind.BEETLE_BOT, 48.0)
+	add_cactus(Vector2(31 * TILE_SIZE + 8, 192), true, 0.6)
+	_cut_pit(42, 4, true, true)
+	_add_stone_platform(50, 8, 7, 3, true)
+	_add_enemy_at(54, 104, PooledEnemy.Kind.GEARWING, 78.0)
+	_add_spring(61, 535.0)
+	_add_stone_platform(65, 5, 7, 3)
+	_add_coin_line(65, 68, 7)
+	_add_ground_enemy(76, PooledEnemy.Kind.WADDLEDUCK, 50.0)
+	add_checkpoint(Vector2(83 * TILE_SIZE + 8, 188))
+	_add_ground_enemy(87, PooledEnemy.Kind.SHELLBACK, 30.0)
+	_cut_pit(91, 5, true, true)
+	_add_block_row(101, 7, 6, 3, GearBlock.Content.MULTI_COIN, false, BlockPattern.WAVE)
+	add_cactus(Vector2(113 * TILE_SIZE + 8, 192), false)
+	_add_entity_falling_rock(122)
+	_add_ground_enemy(128, PooledEnemy.Kind.BOUNCECAP, 45.0)
+	_cut_pit(136, 4, true, true)
+	_add_ground_enemy(145, PooledEnemy.Kind.WADDLEDUCK, 42.0)
+	_add_block_row(149, 8, 5, 2, GearBlock.Content.MUSHROOM, true, BlockPattern.SPLIT)
+	_finish_standard_stage()
+
+
+func _build_final_stronghold() -> void:
+	_build_ground(3)
+	_add_block_row(12, 8, 7, 3, GearBlock.Content.MUSHROOM, false, BlockPattern.CROWN)
+	_add_ground_enemy(24, PooledEnemy.Kind.WADDLEDUCK, 46.0)
+	_add_stone_platform(30, 8, 7, 3, true)
+	_add_coin_arc_cells(33, 103, 7, 15.0, 20.0)
+	add_cactus(Vector2(43 * TILE_SIZE + 8, 192), true, 1.1)
+	_add_ground_enemy(52, PooledEnemy.Kind.BOUNCECAP, 44.0)
+	add_checkpoint(Vector2(59 * TILE_SIZE + 8, 188))
+	_add_block_row(63, 7, 6, 2, GearBlock.Content.MUSHROOM, true, BlockPattern.STEPS)
+	_add_ground_enemy(70, PooledEnemy.Kind.SHELLBACK, 28.0)
+	_add_spring(73, 505.0)
+	_add_stone_platform(77, 6, 6, 3)
+	_finish_boss_stage(GearheartGuardian.Variant.GEARHEART, 78, 88, 26)
+
+
+func _build_ruined_canopy() -> void:
+	_build_ground()
+	_add_block_row(11, 8, 7, 2, GearBlock.Content.MUSHROOM, false, BlockPattern.CROWN)
+	_add_stone_platform(24, 10, 4, 2, true)
+	_add_stone_platform(28, 8, 4, 3)
+	_add_coin_arc_cells(28, 108, 7, 14.0, 23.0)
+	_add_ground_enemy(37, PooledEnemy.Kind.WADDLEDUCK, 55.0)
+	_cut_pit(44, 4, true, true)
+	add_pipe(Vector2(54 * TILE_SIZE + 8, 192), 48.0, GearPipe.TravelMode.ENTER_BONUS, 2)
+	_add_block_row(61, 7, 6, 3, GearBlock.Content.MULTI_COIN, true, BlockPattern.SPLIT)
+	add_checkpoint(Vector2(72 * TILE_SIZE + 8, 188))
+	add_cactus(Vector2(80 * TILE_SIZE + 8, 192), true, 0.35)
+	_add_stone_platform(88, 9, 5, 2, true)
+	_add_stone_platform(94, 7, 5, 3)
+	_add_enemy_at(99, 100, PooledEnemy.Kind.GEARWING, 90.0)
+	_cut_pit(106, 5, true, true)
+	_add_spring(116, 555.0)
+	_add_stone_platform(120, 6, 8, 2, true)
+	_add_block_row(132, 8, 6, 2, GearBlock.Content.MUSHROOM, true, BlockPattern.WAVE)
+	_add_ground_enemy(141, PooledEnemy.Kind.SHELLBACK, 34.0)
+	_finish_standard_stage()
+
+
+func _build_echo_mines() -> void:
+	_build_ground(1)
+	_add_spring(12, 570.0)
+	_add_stone_platform(16, 9, 5, 2, true)
+	_add_stone_platform(24, 6, 6, 1)
+	_add_block_row(25, 2, 5, 1, GearBlock.Content.MUSHROOM, false, BlockPattern.WAVE)
+	_add_enemy_at(35, 92, PooledEnemy.Kind.GEARWING, 98.0)
+	_cut_pit(42, 6, true, true)
+	_add_stone_platform(53, 8, 8, 3, true)
+	_add_entity_falling_rock(57)
+	_add_ground_enemy(65, PooledEnemy.Kind.BOUNCECAP, 52.0)
+	add_checkpoint(Vector2(75 * TILE_SIZE + 8, 188))
+	_add_block_row(81, 8, 7, 3, GearBlock.Content.MULTI_COIN, false, BlockPattern.CROWN)
+	_add_stone_platform(94, 6, 5, 2, true)
+	_add_stone_platform(102, 4, 5, 3)
+	_add_coin_arc_cells(104, 66, 8, 14.0, 21.0)
+	_add_enemy_at(112, 102, PooledEnemy.Kind.GEARWING, 105.0)
+	_cut_pit(120, 5, true, true)
+	_add_entity_falling_rock(132)
+	_add_block_row(137, 7, 6, 2, GearBlock.Content.MUSHROOM, true, BlockPattern.SPLIT)
+	_add_ground_enemy(147, PooledEnemy.Kind.SHELLBACK, 35.0)
+	_finish_standard_stage()
+
+
+func _build_storm_foundry() -> void:
+	_build_ground(3)
+	_add_block_row(11, 8, 7, 2, GearBlock.Content.MUSHROOM, false, BlockPattern.STEPS)
+	_add_ground_enemy(23, PooledEnemy.Kind.WADDLEDUCK, 58.0)
+	_cut_pit(31, 5, true, true)
+	_add_stone_platform(40, 8, 7, 3, true)
+	_add_enemy_at(45, 103, PooledEnemy.Kind.GEARWING, 104.0)
+	add_cactus(Vector2(52 * TILE_SIZE + 8, 192), true, 0.8)
+	_add_block_row(59, 6, 6, 3, GearBlock.Content.MULTI_COIN, false, BlockPattern.CROWN)
+	add_checkpoint(Vector2(70 * TILE_SIZE + 8, 188))
+	_cut_pit(77, 5, true, true)
+	_add_spring(87, 545.0)
+	_add_stone_platform(91, 6, 7, 3, true)
+	_add_block_row(100, 8, 6, 2, GearBlock.Content.MUSHROOM, true, BlockPattern.SPLIT)
+	_add_ground_enemy(111, PooledEnemy.Kind.SHELLBACK, 38.0)
+	_add_ground_enemy(119, PooledEnemy.Kind.BEETLE_BOT, 45.0)
+	_finish_boss_stage(GearheartGuardian.Variant.STORM_FORGE, 132, 138, 32)
+
+
+func _build_glacier_switchbacks() -> void:
+	_build_ground()
+	_add_block_row(12, 8, 6, 2, GearBlock.Content.MUSHROOM, false, BlockPattern.CROWN)
+	_add_stone_platform(23, 10, 4)
+	_add_stone_platform(28, 8, 4, 2, true)
+	_add_stone_platform(33, 6, 4)
+	_add_stone_platform(38, 4, 5, 2, true)
+	_add_coin_arc_cells(36, 70, 9, 14.0, 25.0)
+	_add_enemy_at(48, 91, PooledEnemy.Kind.GEARWING, 105.0)
+	_cut_pit(55, 6, true, true)
+	_add_entity_falling_rock(63)
+	_add_block_row(67, 7, 7, 3, GearBlock.Content.MULTI_COIN, true, BlockPattern.WAVE)
+	add_checkpoint(Vector2(78 * TILE_SIZE + 8, 188))
+	_add_ground_enemy(84, PooledEnemy.Kind.SHELLBACK, 34.0)
+	_add_spring(90, 575.0)
+	_add_stone_platform(94, 5, 8, 2, true)
+	_add_enemy_at(105, 92, PooledEnemy.Kind.GEARWING, 110.0)
+	_cut_pit(113, 6, true, true)
+	_add_stone_platform(124, 8, 5, 3)
+	_add_block_row(131, 6, 7, 3, GearBlock.Content.MUSHROOM, true, BlockPattern.STEPS)
+	_add_entity_falling_rock(143)
+	_add_ground_enemy(150, PooledEnemy.Kind.WADDLEDUCK, 58.0)
+	_finish_standard_stage()
+
+
+func _build_magma_aqueduct() -> void:
+	_build_ground(3)
+	_add_block_row(11, 8, 7, 2, GearBlock.Content.MUSHROOM, false, BlockPattern.WAVE)
+	add_cactus(Vector2(23 * TILE_SIZE + 8, 192), true, 0.25)
+	_cut_pit(31, 6, true, true)
+	_add_stone_platform(42, 9, 6, 3, true)
+	_add_stone_platform(50, 7, 6, 2)
+	_add_coin_arc_cells(52, 97, 8, 15.0, 24.0)
+	_add_ground_enemy(61, PooledEnemy.Kind.BEETLE_BOT, 52.0)
+	_add_block_row(67, 6, 7, 3, GearBlock.Content.MULTI_COIN, false, BlockPattern.CROWN)
+	add_checkpoint(Vector2(78 * TILE_SIZE + 8, 188))
+	_cut_pit(84, 6, true, true)
+	_add_spring(95, 575.0)
+	_add_stone_platform(99, 5, 8, 3, true)
+	_add_enemy_at(108, 92, PooledEnemy.Kind.GEARWING, 112.0)
+	add_cactus(Vector2(118 * TILE_SIZE + 8, 192), true, 1.7)
+	_add_block_row(124, 7, 6, 2, GearBlock.Content.MUSHROOM, true, BlockPattern.SPLIT)
+	_cut_pit(137, 5, true, true)
+	_add_ground_enemy(148, PooledEnemy.Kind.SHELLBACK, 38.0)
+	_add_ground_enemy(155, PooledEnemy.Kind.WADDLEDUCK, 60.0)
+	_finish_standard_stage()
+
+
+func _build_core_descent() -> void:
+	_build_ground(1)
+	_add_spring(11, 585.0)
+	_add_stone_platform(15, 8, 6, 2, true)
+	_add_stone_platform(24, 5, 6, 3, true)
+	_add_block_row(25, 1, 5, 2, GearBlock.Content.MUSHROOM, false, BlockPattern.CROWN)
+	_add_enemy_at(36, 87, PooledEnemy.Kind.GEARWING, 110.0)
+	_cut_pit(44, 6, true, true)
+	_add_stone_platform(55, 7, 7, 3, true)
+	_add_entity_falling_rock(59)
+	_add_ground_enemy(67, PooledEnemy.Kind.SHELLBACK, 37.0)
+	add_checkpoint(Vector2(74 * TILE_SIZE + 8, 188))
+	_add_block_row(80, 7, 7, 3, GearBlock.Content.MULTI_COIN, false, BlockPattern.SPLIT)
+	_add_stone_platform(94, 5, 7, 2, true)
+	_add_spring(103, 570.0)
+	_add_block_row(108, 7, 6, 2, GearBlock.Content.MUSHROOM, true, BlockPattern.WAVE)
+	_add_ground_enemy(119, PooledEnemy.Kind.BEETLE_BOT, 50.0)
+	_finish_boss_stage(GearheartGuardian.Variant.MAGMA_COLOSSUS, 136, 143, 38)
+
+
+func _build_overgrown_clocktower() -> void:
+	_build_ground()
+	_add_block_row(10, 8, 7, 2, GearBlock.Content.MUSHROOM, false, BlockPattern.SPLIT)
+	_add_stone_platform(22, 10, 4, 2, true)
+	_add_stone_platform(27, 8, 4, 3)
+	_add_stone_platform(32, 6, 4, 2, true)
+	_add_stone_platform(37, 4, 5, 3)
+	_add_enemy_at(42, 80, PooledEnemy.Kind.GEARWING, 115.0)
+	add_pipe(Vector2(50 * TILE_SIZE + 8, 192), 56.0, GearPipe.TravelMode.ENTER_BONUS, 3)
+	_cut_pit(60, 5, true, true)
+	_add_block_row(69, 7, 7, 3, GearBlock.Content.MULTI_COIN, true, BlockPattern.CROWN)
+	add_checkpoint(Vector2(80 * TILE_SIZE + 8, 188))
+	add_cactus(Vector2(88 * TILE_SIZE + 8, 192), true, 0.9)
+	_add_spring(96, 575.0)
+	_add_stone_platform(100, 5, 8, 2, true)
+	_add_enemy_at(111, 95, PooledEnemy.Kind.GEARWING, 118.0)
+	_cut_pit(119, 6, true, true)
+	_add_block_row(130, 6, 7, 3, GearBlock.Content.MUSHROOM, true, BlockPattern.STEPS)
+	_add_ground_enemy(143, PooledEnemy.Kind.SHELLBACK, 40.0)
+	_add_ground_enemy(151, PooledEnemy.Kind.WADDLEDUCK, 62.0)
+	_finish_standard_stage()
+
+
+func _build_lunar_frost_keep() -> void:
+	_build_ground(2)
+	_add_block_row(11, 8, 7, 2, GearBlock.Content.MUSHROOM, false, BlockPattern.CROWN)
+	_add_stone_platform(24, 8, 6, 2, true)
+	_cut_pit(33, 6, true, true)
+	_add_stone_platform(44, 6, 8, 3, true)
+	_add_entity_falling_rock(48)
+	_add_enemy_at(55, 93, PooledEnemy.Kind.GEARWING, 118.0)
+	_add_block_row(62, 8, 7, 3, GearBlock.Content.MULTI_COIN, false, BlockPattern.WAVE)
+	add_checkpoint(Vector2(73 * TILE_SIZE + 8, 188))
+	_add_ground_enemy(80, PooledEnemy.Kind.SHELLBACK, 40.0)
+	_add_spring(87, 590.0)
+	_add_stone_platform(91, 5, 8, 2, true)
+	_cut_pit(104, 6, true, true)
+	_add_block_row(115, 7, 7, 3, GearBlock.Content.MUSHROOM, true, BlockPattern.SPLIT)
+	_add_ground_enemy(126, PooledEnemy.Kind.WADDLEDUCK, 62.0)
+	_finish_boss_stage(GearheartGuardian.Variant.FROST_CROWN, 140, 147, 44)
+
+
+func _build_royal_gearway() -> void:
+	_build_ground(3)
+	_add_block_row(10, 8, 7, 2, GearBlock.Content.MUSHROOM, false, BlockPattern.STEPS)
+	_add_ground_enemy(22, PooledEnemy.Kind.BEETLE_BOT, 55.0)
+	_cut_pit(30, 6, true, true)
+	_add_stone_platform(41, 9, 6, 3, true)
+	_add_stone_platform(49, 7, 6, 2, true)
+	_add_enemy_at(55, 98, PooledEnemy.Kind.GEARWING, 120.0)
+	_add_block_row(63, 5, 7, 3, GearBlock.Content.MULTI_COIN, false, BlockPattern.CROWN)
+	add_checkpoint(Vector2(75 * TILE_SIZE + 8, 188))
+	add_cactus(Vector2(83 * TILE_SIZE + 8, 192), true, 1.2)
+	_add_ground_enemy(91, PooledEnemy.Kind.SHELLBACK, 42.0)
+	_cut_pit(98, 6, true, true)
+	_add_spring(109, 590.0)
+	_add_stone_platform(113, 5, 9, 3, true)
+	_add_block_row(126, 7, 7, 3, GearBlock.Content.MUSHROOM, true, BlockPattern.SPLIT)
+	_add_enemy_at(140, 98, PooledEnemy.Kind.GEARWING, 122.0)
+	_cut_pit(148, 6, true, true)
+	_add_ground_enemy(159, PooledEnemy.Kind.WADDLEDUCK, 64.0)
+	_finish_standard_stage()
+
+
+func _build_chrono_throne() -> void:
+	_build_ground(3)
+	_add_block_row(10, 8, 7, 2, GearBlock.Content.MUSHROOM, false, BlockPattern.CROWN)
+	_add_ground_enemy(22, PooledEnemy.Kind.SHELLBACK, 40.0)
+	_add_stone_platform(29, 8, 7, 3, true)
+	_cut_pit(39, 6, true, true)
+	_add_enemy_at(50, 98, PooledEnemy.Kind.GEARWING, 124.0)
+	_add_block_row(57, 6, 7, 3, GearBlock.Content.MULTI_COIN, true, BlockPattern.SPLIT)
+	add_checkpoint(Vector2(69 * TILE_SIZE + 8, 188))
+	add_cactus(Vector2(77 * TILE_SIZE + 8, 192), true, 0.4)
+	_add_spring(84, 600.0)
+	_add_stone_platform(88, 5, 8, 3, true)
+	_add_block_row(99, 7, 7, 3, GearBlock.Content.MUSHROOM, true, BlockPattern.WAVE)
+	_add_ground_enemy(111, PooledEnemy.Kind.BEETLE_BOT, 54.0)
+	_add_ground_enemy(118, PooledEnemy.Kind.WADDLEDUCK, 64.0)
+	_finish_boss_stage(GearheartGuardian.Variant.CHRONO_SOVEREIGN, 128, 135, 54, true)
+
+
+func _apply_difficulty_support() -> void:
+	# Easy adds a clearly marked early safety pickup in every stage. Hard keeps
+	# the authored power route but trims loose coins and adds patrol pressure in
+	# the enemy helpers below, so all three modes remain finishable.
+	if SettingsManager.difficulty_id == "easy":
+		add_block(Vector2(7 * TILE_SIZE + 8, 8 * TILE_SIZE + 8), GearBlock.Type.QUESTION, GearBlock.Content.MUSHROOM)
+
+
+func _build_ground(tile: int = 0) -> void:
+	solid_rect(0, 12, level_width_tiles, 4, tile)
+
+
+func _finish_standard_stage() -> void:
+	var flag := add_flag(Vector2(level_width_tiles * TILE_SIZE - 50, 188), "", CAMPAIGN_SCENE)
 	flag.activated.connect(_on_stage_goal_reached)
 
 
-func _build_pits() -> void:
-	var pit_count := 2 + (world_number - 1) / 2 + (stage_number - 1)
-	var usable_width := level_width_tiles - 44
-	var spacing := maxi(18, usable_width / maxi(pit_count, 1))
-	for index: int in pit_count:
-		var pit_width := 2 + posmod(world_number + stage_number + index, 3)
-		var pit_x := 22 + index * spacing + posmod(world_number * 7 + stage_number * 5 + index * 3, 7)
-		pit_x = mini(pit_x, level_width_tiles - 18 - pit_width)
-		pit_ranges.append(Vector2i(pit_x, pit_width))
-		erase_rect(pit_x, 12, pit_width, 4)
-		add_collectible_arc(Vector2((pit_x + pit_width * 0.5) * TILE_SIZE, 142), pit_width + 2, 14.0, 22.0)
-		if world_number >= 3 and index % 2 == 0:
-			add_entity(MOVING_PLATFORM_SCENE, Vector2((pit_x + pit_width * 0.5) * TILE_SIZE, 165), {
-				"offset": Vector2(0, -42 - world_number * 2),
-				"travel_time": maxf(1.2, 2.4 - world_number * 0.1),
-			})
-
-
-func _build_platform_route() -> void:
-	# Each 24-tile section follows a readable setup → reward → threat rhythm.
-	# Blocks stay in the opening third; the final third is reserved for a pipe.
-	var section_index := 0
-	for section_start: int in range(13, level_width_tiles - 22, 24):
-		var anchor := section_start + 2
-		var pattern := _section_pattern(section_index)
-		var reward_content := GearBlock.Content.MUSHROOM if section_index in [0, 3] else GearBlock.Content.COIN
-		_add_section_blocks(anchor, pattern, reward_content)
-		_add_section_coins(anchor, pattern)
-		section_index += 1
-
-
-func _section_pattern(section_index: int) -> int:
-	# World 1-1 deliberately teaches with low, simple rows before introducing
-	# stairs and elevated arrangements in later stages.
-	if world_number == 1 and stage_number == 1:
-		return [0, 3, 0, 3][section_index % 4]
-	return posmod(world_number * 3 + stage_number + section_index, 4)
-
-
-func _add_section_blocks(anchor: int, pattern: int, reward_content: int) -> void:
-	match pattern:
-		0:
-			for offset: int in [0, 1, 3, 4]:
-				add_block(Vector2((anchor + offset) * TILE_SIZE + 8, 8 * TILE_SIZE + 8), GearBlock.Type.BRICK)
-			add_block(Vector2((anchor + 2) * TILE_SIZE + 8, 8 * TILE_SIZE + 8), GearBlock.Type.QUESTION, reward_content)
-		1:
-			for offset: int in [0, 1, 2, 3]:
-				add_block(Vector2((anchor + offset) * TILE_SIZE + 8, 7 * TILE_SIZE + 8), GearBlock.Type.BRICK)
-			add_block(Vector2((anchor + 1) * TILE_SIZE + 8, 5 * TILE_SIZE + 8), GearBlock.Type.QUESTION, reward_content)
-		2:
-			for offset: int in 4:
-				add_block(Vector2((anchor + offset) * TILE_SIZE + 8, (9 - offset) * TILE_SIZE + 8), GearBlock.Type.BRICK)
-			add_block(Vector2((anchor + 4) * TILE_SIZE + 8, 8 * TILE_SIZE + 8), GearBlock.Type.QUESTION, reward_content)
-		3:
-			for offset: int in [0, 1, 4, 5]:
-				add_block(Vector2((anchor + offset) * TILE_SIZE + 8, 8 * TILE_SIZE + 8), GearBlock.Type.BRICK)
-			add_block(Vector2((anchor + 2) * TILE_SIZE + 8, 7 * TILE_SIZE + 8), GearBlock.Type.QUESTION, reward_content)
-			add_block(Vector2((anchor + 3) * TILE_SIZE + 8, 7 * TILE_SIZE + 8), GearBlock.Type.BRICK)
-
-
-func _add_section_coins(anchor: int, pattern: int) -> void:
-	# Low coins teach the route; the upper row rewards using the blocks as platforms.
-	for offset: int in [-3, -2, -1]:
-		var coin_cell := _nearest_open_coin_cell(anchor + offset, 158)
-		if coin_cell >= 0:
-			add_collectible(Vector2(coin_cell * TILE_SIZE + 8, 158))
-	var upper_y := 78.0 if pattern == 1 else 96.0
-	for offset: int in range(0, 5):
-		var wave := sin(float(offset) / 4.0 * PI) * 12.0
-		add_collectible(Vector2((anchor + offset) * TILE_SIZE + 8, upper_y - wave))
-
-
-func _build_obstacles() -> void:
-	# Pipes are section fixtures and are built with enemies below. Keep only
-	# later-world mobility helpers here so no second pipe can crowd a cactus pipe.
-	if world_number < 2:
-		return
-	for obstacle_index: int in 3 + stage_number:
-		if obstacle_index % 2 == 1:
-			var cell_x := _nearest_safe_cell(42 + obstacle_index * 27 + world_number * 2)
-			add_entity(SPRING_SCENE, Vector2(cell_x * TILE_SIZE + 8, 181), {
-				"launch_strength": 470.0 + world_number * 12.0,
-			})
-
-
-func _build_enemies_and_hazards() -> void:
-	var section_starts: Array[int] = []
-	var fixture_entries: Array[Vector2i] = []
-	for section_start: int in range(13, level_width_tiles - 22, 24):
-		var section_index := section_starts.size()
-		section_starts.append(section_start)
-		var fixture_cell := _safe_cell_in_band(section_start + 19, section_start + 17, section_start + 21)
-		if fixture_cell >= 0:
-			fixture_entries.append(Vector2i(section_index, fixture_cell))
-	var cactus_sections: Array[int] = []
-	if fixture_entries.size() >= 2:
-		var first_cactus_slot := 1 if fixture_entries.size() >= 3 else 0
-		var second_cactus_slot := fixture_entries.size() - 1
-		if second_cactus_slot == first_cactus_slot:
-			second_cactus_slot = 0
-		cactus_sections.append(fixture_entries[first_cactus_slot].x)
-		cactus_sections.append(fixture_entries[second_cactus_slot].x)
-
-	var cactus_index := 0
-	for section_index: int in section_starts.size():
-		var section_start := section_starts[section_index]
-		var cap_cell := _safe_cell_in_band(section_start + 12, section_start + 9, section_start + 15)
-		if cap_cell >= 0:
-			add_enemy(
-				Vector2(cap_cell * TILE_SIZE + 8, 174),
-				PooledEnemy.Kind.BOUNCECAP,
-				38.0 + world_number * 4.0,
-				false
-			)
-			if (world_number >= 2 or stage_number >= 2) and section_index % 2 == 1:
-				var pair_cell := _safe_cell_in_band(cap_cell + 3, section_start + 9, section_start + 16)
-				if pair_cell >= 0 and pair_cell != cap_cell:
-					add_enemy(
-						Vector2(pair_cell * TILE_SIZE + 8, 174),
-						PooledEnemy.Kind.BOUNCECAP,
-						34.0 + world_number * 3.0,
-						false
-					)
-		if world_number >= 3 and section_index % 3 == 2:
-			var support_cell := _safe_cell_in_band(section_start + 10, section_start + 9, section_start + 15)
-			var support_kind := PooledEnemy.Kind.GEARWING if stage_number == 3 else PooledEnemy.Kind.BEETLE_BOT
-			var support_y := 112.0 if support_kind == PooledEnemy.Kind.GEARWING else 174.0
-			if support_cell >= 0:
-				add_enemy(Vector2(support_cell * TILE_SIZE + 8, support_y), support_kind, 64.0 + world_number * 5.0, false)
-
-		var fixture_cell := -1
-		for entry: Vector2i in fixture_entries:
-			if entry.x == section_index:
-				fixture_cell = entry.y
-				break
-		if fixture_cell >= 0:
-			if cactus_sections.has(section_index):
-				var retracting_cactus := cactus_index == 1
-				var cactus_phase := fposmod(cactus_index * 0.91 + world_number * 0.19 + stage_number * 0.31, 3.8)
-				add_cactus(
-					Vector2(fixture_cell * TILE_SIZE + 8, 192),
-					retracting_cactus,
-					cactus_phase
-				)
-				cactus_index += 1
-			else:
-				var pipe_height := 40.0 + posmod(floori(section_index / 2.0) + world_number, 3) * 8.0
-				add_pipe(Vector2(fixture_cell * TILE_SIZE + 8, 192), pipe_height)
-		if world_number >= 4 and section_index % 4 == 2:
-			add_entity(SPIKE_SCENE, Vector2(_nearest_safe_cell(section_start + 10) * TILE_SIZE + 8, 184))
-		if world_number >= 5 and section_index % 3 == 1 and cap_cell >= 0:
-			add_entity(FALLING_ROCK_SCENE, Vector2(cap_cell * TILE_SIZE + 8, 60))
-	if world_number >= 6:
-		add_entity(HIDDEN_AREA_SCENE, Vector2((level_width_tiles - 24) * TILE_SIZE, 128), {
-			"cover_size": Vector2(112, 80),
-		})
-
-
-func _build_boss_stage() -> void:
-	solid_rect(0, 12, level_width_tiles, 4, 3)
-	for platform_index: int in 4:
-		var cell_x := 10 + platform_index * ((level_width_tiles - 32) / 4)
-		var platform_y := 9 - posmod(platform_index + world_number, 3)
-		solid_rect(cell_x, platform_y, 7, 1, 2)
-	add_entity(SPIKE_SCENE, Vector2(480, 184))
-	add_entity(SPIKE_SCENE, Vector2(760 + world_number * 10, 184))
-	add_entity(SPRING_SCENE, Vector2(260, 181), {"launch_strength": 500.0 + world_number * 8.0})
-	var gate_x := (level_width_tiles - 18) * TILE_SIZE
-	_build_boss_approach(gate_x)
-	var boss_x := gate_x - 250
-	boss = add_entity(BOSS_SCENE, Vector2(boss_x, 150), {
-		"max_health": 8 + world_number * 3,
+func _finish_boss_stage(
+	variant: int,
+	boss_cell: int,
+	gate_cell: int,
+	boss_health: int,
+	is_final: bool = false
+) -> void:
+	boss = add_entity(BOSS_SCENE, Vector2(boss_cell * TILE_SIZE, 150), {
+		"boss_variant": variant,
+		"max_health": boss_health,
 	}) as GearheartGuardian
 	hud.bind_boss(boss)
 	boss.defeated.connect(_on_boss_defeated)
-	_create_arena_gate(gate_x)
-	final_exit = add_entity(EXIT_SCENE, Vector2(level_width_tiles * TILE_SIZE - 50, 188), {
-		"unlock_level_id": "complete" if stage_index == 31 else "",
-		"next_scene": "" if stage_index == 31 else CAMPAIGN_SCENE,
-	}) as LevelExit
-	final_exit.activated.connect(_on_stage_goal_reached)
+	_create_arena_gate(gate_cell * TILE_SIZE)
+	if is_final:
+		final_exit = add_entity(EXIT_SCENE, Vector2(level_width_tiles * TILE_SIZE - 50, 188), {
+			"unlock_level_id": "complete",
+			"next_scene": "",
+		}) as LevelExit
+		final_exit.activated.connect(_on_stage_goal_reached)
+		return
+	var flag := add_flag(Vector2(level_width_tiles * TILE_SIZE - 50, 188), "", CAMPAIGN_SCENE)
+	flag.activated.connect(_on_stage_goal_reached)
 
 
-func _build_boss_approach(gate_x: float) -> void:
-	# Strongholds retain the same visual language before the isolated boss arena.
-	for cluster_index: int in 3:
-		var anchor := 17 + cluster_index * 20 + posmod(world_number, 3)
-		for offset: int in 5:
-			var block_type := GearBlock.Type.QUESTION if offset == 2 else GearBlock.Type.BRICK
-			var content := GearBlock.Content.COIN if offset == 2 else GearBlock.Content.NONE
-			add_block(Vector2((anchor + offset) * TILE_SIZE + 8, 8 * TILE_SIZE + 8), block_type, content)
-		add_collectible_arc(Vector2((anchor + 2) * TILE_SIZE + 8, 96), 5, 15.0, 12.0)
-	add_enemy(Vector2(365, 174), PooledEnemy.Kind.BOUNCECAP, 48.0, false)
-	add_enemy(Vector2(gate_x - 520, 174), PooledEnemy.Kind.BOUNCECAP, 52.0, false)
-	add_cactus(Vector2(560, 192), false)
-	add_cactus(Vector2(gate_x - 430, 192), true, world_number * 0.37)
+func _cut_pit(cell_x: int, width: int, add_coins: bool = true, moving_platform: bool = false) -> void:
+	pit_ranges.append(Vector2i(cell_x, width))
+	erase_rect(cell_x, 12, width, 4)
+	if add_coins:
+		add_collectible_arc(
+			Vector2((cell_x + width * 0.5) * TILE_SIZE, 151),
+			width + 2,
+			14.0,
+			22.0
+		)
+	if moving_platform:
+		add_entity(MOVING_PLATFORM_SCENE, Vector2((cell_x + width * 0.5) * TILE_SIZE, 166), {
+			"offset": Vector2(0, -34.0 if width <= 4 else -48.0),
+			"travel_time": 2.0 + width * 0.08,
+		})
+
+
+func _add_block_row(
+	cell_x: int,
+	cell_y: int,
+	count: int,
+	question_index: int = -1,
+	content: int = GearBlock.Content.COIN,
+	hidden_reward: bool = false,
+	pattern: int = BlockPattern.ROW
+) -> void:
+	used_block_patterns[pattern] = true
+	for offset: int in count:
+		var type := GearBlock.Type.QUESTION if offset == question_index else GearBlock.Type.BRICK
+		var item_content := content if offset == question_index else GearBlock.Content.NONE
+		if hidden_reward and offset == question_index:
+			type = GearBlock.Type.BRICK
+		var shaped_y := cell_y - _block_pattern_lift(pattern, offset, count)
+		add_block(Vector2((cell_x + offset) * TILE_SIZE + 8, shaped_y * TILE_SIZE + 8), type, item_content)
+
+
+func _block_pattern_lift(pattern: int, offset: int, count: int) -> int:
+	match pattern:
+		BlockPattern.WAVE:
+			return offset % 2
+		BlockPattern.STEPS:
+			return mini(offset / 2, 2)
+		BlockPattern.CROWN:
+			return mini(mini(offset, count - 1 - offset), 2)
+		BlockPattern.SPLIT:
+			var center := count / 2
+			return 2 if offset == center else (1 if abs(offset - center) == 2 else 0)
+		_:
+			return 0
+
+
+func _add_stone_platform(
+	cell_x: int,
+	cell_y: int,
+	width: int,
+	tile: int = 2,
+	breakable: bool = false
+) -> void:
+	solid_rect(cell_x, cell_y, width, 1, tile)
+	if breakable:
+		register_breakable_stone_rect(cell_x, cell_y, width)
+
+
+func _add_coin_line(cell_x: int, world_y: int, count: int, spacing_cells: int = 1) -> void:
+	for offset: int in count:
+		add_collectible(Vector2((cell_x + offset * spacing_cells) * TILE_SIZE + 8, world_y))
+
+
+func _add_vertical_coins(cell_x: int, start_y: int, count: int, spacing: int) -> void:
+	for offset: int in count:
+		add_collectible(Vector2(cell_x * TILE_SIZE + 8, start_y - offset * spacing))
+
+
+func _add_coin_arc_cells(
+	center_cell: int,
+	world_y: int,
+	count: int,
+	spacing: float,
+	height: float
+) -> void:
+	add_collectible_arc(Vector2(center_cell * TILE_SIZE + 8, world_y), count, spacing, height)
+
+
+func _add_spring(cell_x: int, strength: float) -> void:
+	add_entity(SPRING_SCENE, Vector2(cell_x * TILE_SIZE + 8, 181), {"launch_strength": strength})
+
+
+func _add_entity_falling_rock(cell_x: int) -> void:
+	add_entity(FALLING_ROCK_SCENE, Vector2(cell_x * TILE_SIZE + 8, 58))
+
+
+func _add_ground_enemy(cell_x: int, kind: int, patrol: float) -> void:
+	enemy_spawn_counter += 1
+	if SettingsManager.difficulty_id == "easy" and enemy_spawn_counter % 4 == 0:
+		return
+	add_enemy(Vector2(cell_x * TILE_SIZE + 8, 174), kind, patrol, false)
+	if SettingsManager.difficulty_id == "hard" and enemy_spawn_counter % 4 == 0 and _is_safe_ground(cell_x + 2):
+		add_enemy(Vector2((cell_x + 2) * TILE_SIZE + 8, 174), kind, patrol * 0.75, false)
+
+
+func _add_enemy_at(cell_x: int, world_y: int, kind: int, patrol: float) -> void:
+	enemy_spawn_counter += 1
+	if SettingsManager.difficulty_id == "easy" and enemy_spawn_counter % 4 == 0:
+		return
+	add_enemy(Vector2(cell_x * TILE_SIZE + 8, world_y), kind, patrol, false)
+	if SettingsManager.difficulty_id == "hard" and enemy_spawn_counter % 4 == 0:
+		add_enemy(Vector2((cell_x + 2) * TILE_SIZE + 8, world_y - 10), kind, patrol * 0.8, false)
 
 
 func _create_arena_gate(gate_x: float) -> void:
@@ -262,12 +681,12 @@ func _create_arena_gate(gate_x: float) -> void:
 	var glow := Line2D.new()
 	glow.points = PackedVector2Array([Vector2(0, -76), Vector2(0, 76)])
 	glow.width = 11.0
-	glow.default_color = Color(0.25, 0.95, 1.0, 0.25)
+	glow.default_color = Color(0.25, 0.95, 1.0, 0.28)
 	arena_gate.add_child(glow)
 	var beam := Line2D.new()
 	beam.points = glow.points
 	beam.width = 4.0
-	beam.default_color = Color("73edf5")
+	beam.default_color = Color("9cffff")
 	arena_gate.add_child(beam)
 	entity_root.add_child(arena_gate)
 
@@ -281,48 +700,21 @@ func _on_boss_defeated() -> void:
 
 
 func _on_stage_goal_reached(_body: Node2D) -> void:
-	if stage_index >= 31:
+	if stage_index >= STAGE_COUNT - 1:
 		GameManager.complete_campaign()
-		player.controls_locked = true
+		# 通关菜单关闭后允许玩家继续浏览最终关；计时仍由 finish_level 停止。
+		player.controls_locked = false
 		player.velocity = Vector2.ZERO
 		hud.show_campaign_complete()
 		return
 	GameManager.advance_campaign_stage()
 
 
-func _nearest_safe_cell(requested_x: int) -> int:
-	var cell_x := clampi(requested_x, 8, level_width_tiles - 12)
-	for search_offset: int in 12:
-		for candidate: int in [cell_x + search_offset, cell_x - search_offset]:
-			if _is_safe_ground(candidate):
-				return candidate
-	return cell_x
-
-
 func _is_safe_ground(cell_x: int) -> bool:
 	for pit: Vector2i in pit_ranges:
-		if cell_x >= pit.x - 2 and cell_x <= pit.x + pit.y + 2:
+		if cell_x >= pit.x - 1 and cell_x <= pit.x + pit.y:
 			return false
-	return cell_x >= 4 and cell_x < level_width_tiles - 8
-
-
-func _safe_cell_in_band(preferred_x: int, minimum_x: int, maximum_x: int) -> int:
-	var band_width := maximum_x - minimum_x + 1
-	for search_offset: int in band_width:
-		for candidate: int in [preferred_x + search_offset, preferred_x - search_offset]:
-			if candidate >= minimum_x and candidate <= maximum_x and _is_safe_ground(candidate):
-				return candidate
-	return -1
-
-
-func _nearest_open_coin_cell(requested_x: int, y: int) -> int:
-	var start_x := _nearest_safe_cell(requested_x)
-	for search_offset: int in 12:
-		for candidate: int in [start_x + search_offset, start_x - search_offset]:
-			var key := Vector2i(candidate * TILE_SIZE + 8, y)
-			if _is_safe_ground(candidate) and not occupied_coin_positions.has(key):
-				return candidate
-	return -1
+	return cell_x >= 4 and cell_x < level_width_tiles - 5
 
 
 func add_block(world_position: Vector2, block_type: int, content: int = 0) -> GearBlock:
@@ -330,10 +722,17 @@ func add_block(world_position: Vector2, block_type: int, content: int = 0) -> Ge
 	if occupied_block_positions.has(key):
 		return null
 	occupied_block_positions[key] = true
-	return super.add_block(world_position, block_type, content)
+	var block := super.add_block(world_position, block_type, content)
+	if block != null:
+		block.visual_theme = STAGE_BLOCK_THEMES[stage_index]
+		block.queue_redraw()
+	return block
 
 
 func add_collectible(world_position: Vector2, heals: bool = false) -> GearCoin:
+	collectible_spawn_counter += 1
+	if SettingsManager.difficulty_id == "hard" and not heals and collectible_spawn_counter % 5 == 0:
+		return null
 	var key := Vector2i(roundi(world_position.x), roundi(world_position.y))
 	if occupied_coin_positions.has(key):
 		return null

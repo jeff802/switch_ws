@@ -4,9 +4,11 @@ extends CharacterBody2D
 signal health_changed(current: int, maximum: int)
 signal stamina_changed(current: float, maximum: float)
 signal power_changed(current: int, maximum: int)
+signal reserve_bloom_changed(count: int)
 signal state_changed(state_name: String)
 
-enum State { IDLE, RUN, JUMP, FALL, ATTACK, HURT, DEAD, DOUBLE_JUMP, WALL_SLIDE, WALL_JUMP }
+enum State { IDLE, RUN, JUMP, FALL, ATTACK, HURT, DEAD }
+enum BloomPickupResult { ACTIVATED, STORED, SCORE_ONLY }
 
 const WALK_SPEED := 96.0
 const RUN_SPEED := 168.0
@@ -29,24 +31,23 @@ const STOMP_BUFFER_TIME := 0.16
 const SPRINT_DUST_INTERVAL := 0.09
 const SKID_SPEED := 90.0
 const STOMP_GRACE_TIME := 0.12
+const SHELL_KICK_GRACE_TIME := 0.22
+const ANALOG_DEADZONE := 0.16
 const DUST_LIMIT := 24
 const DUST_COLOR := Color(0.62, 0.72, 0.6, 0.85)
-const BIG_SCALE := 1.35
+const BIG_SCALE := 1.28
 const SMALL_CAPSULE_HEIGHT := 25.0
-const SMALL_CAPSULE_RADIUS := 8.0
-const BIG_CAPSULE_HEIGHT := 37.0
-const BIG_CAPSULE_RADIUS := 12.0
-const DOUBLE_JUMP_VELOCITY_FACTOR := 0.92
-const WALL_JUMP_HORIZONTAL_SPEED := 190.0
-const WALL_JUMP_VERTICAL_FACTOR := 0.9
-const WALL_SLIDE_GRAVITY := 180.0
-const WALL_SLIDE_MAX_SPEED := 82.0
-const WALL_JUMP_CONTROL_TIME := 0.16
-const ABILITY_STATE_TIME := 0.12
-
+const SMALL_CAPSULE_RADIUS := 6.5
+const BIG_CAPSULE_HEIGHT := 35.0
+const BIG_CAPSULE_RADIUS := 10.0
+const SMALL_COLLISION_OFFSET_Y := -1.0
+const BIG_COLLISION_OFFSET_Y := -6.0
+const SMALL_SPRITE_OFFSET_Y := -1.0
+const BIG_SPRITE_OFFSET_Y := -6.0
+const GROWTH_ANIMATION_DURATION := 0.42
 @export var max_health: int = 5
 @export var max_stamina: float = 100.0
-@export_range(0, 2, 1) var max_air_jumps: int = 1
+var max_air_jumps: int = 0
 
 var health: int = 5
 var stamina: float = 100.0
@@ -68,19 +69,24 @@ var jump_was_pressed: bool = false
 var attack_was_pressed: bool = false
 var stomp_was_pressed: bool = false
 var dust_count: int = 0
-var air_jumps_remaining: int = 1
-var wall_jump_control_timer: float = 0.0
-var ability_state_timer: float = 0.0
+var air_jumps_remaining: int = 0
 var wall_slide_active: bool = false
 var _reported_air_jumps: int = -1
 var _reported_wall_slide: bool = false
 var is_big: bool = false
 var has_orb_power: bool = false
+var reserve_bloom_count: int = 0
+var has_reserve_bloom: bool:
+	get:
+		return reserve_bloom_count > 0
+var growth_animation_timer: float = 0.0
 var walk_speed := WALK_SPEED
 var run_speed := RUN_SPEED
 var jump_velocity := JUMP_VELOCITY
 var dust_color := DUST_COLOR
 var state_machine: PlayerStateMachine
+var position_before_move: Vector2 = Vector2.ZERO
+var vertical_speed_before_move: float = 0.0
 
 @onready var collision_shape: CollisionShape2D = $CollisionShape2D
 @onready var sprite: AnimatedSprite2D = $AnimatedSprite2D
@@ -122,12 +128,11 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _physics_process(delta: float) -> void:
 	invulnerability_timer = maxf(0.0, invulnerability_timer - delta)
+	growth_animation_timer = maxf(0.0, growth_animation_timer - delta)
 	jump_buffer_timer = maxf(0.0, jump_buffer_timer - delta)
 	stomp_buffer_timer = maxf(0.0, stomp_buffer_timer - delta)
 	stomp_grace_timer = maxf(0.0, stomp_grace_timer - delta)
 	attack_timer = maxf(0.0, attack_timer - delta)
-	wall_jump_control_timer = maxf(0.0, wall_jump_control_timer - delta)
-	ability_state_timer = maxf(0.0, ability_state_timer - delta)
 	# TouchScreenButton changes the Input action state directly and does not
 	# reliably emit an unhandled event or just-pressed flag on every platform.
 	# Track the edge ourselves so keyboard, gamepad and touch behave identically.
@@ -161,8 +166,8 @@ func _physics_process(delta: float) -> void:
 		return
 
 	var was_on_floor := is_on_floor()
-	var input_axis := Input.get_axis("move_left", "move_right")
-	if not is_zero_approx(input_axis) and wall_jump_control_timer <= 0.0:
+	var input_axis := _shape_horizontal_input(Input.get_axis("move_left", "move_right"))
+	if not is_zero_approx(input_axis):
 		facing = signf(input_axis)
 
 	var wants_run := Input.is_action_pressed("run") and not is_zero_approx(input_axis)
@@ -173,9 +178,7 @@ func _physics_process(delta: float) -> void:
 		and not is_zero_approx(velocity.x)
 		and signf(input_axis) != signf(velocity.x)
 	)
-	if wall_jump_control_timer > 0.0:
-		skid_dust_played = false
-	elif is_on_floor() and is_zero_approx(input_axis):
+	if is_on_floor() and is_zero_approx(input_axis):
 		velocity.x = move_toward(velocity.x, 0.0, FRICTION * delta)
 		skid_dust_played = false
 	elif reversing:
@@ -208,12 +211,8 @@ func _physics_process(delta: float) -> void:
 		_apply_gravity(delta)
 
 	if jump_buffer_timer > 0.0:
-		if _can_wall_jump():
-			_perform_wall_jump()
-		elif coyote_timer > 0.0:
+		if coyote_timer > 0.0:
 			_perform_ground_jump()
-		elif air_jumps_remaining > 0:
-			_perform_double_jump()
 
 	if jump_just_released and velocity.y < -120.0:
 		velocity.y *= 0.46
@@ -236,14 +235,13 @@ func _physics_process(delta: float) -> void:
 	if attack_just_pressed:
 		_try_attack()
 
+	position_before_move = global_position
+	vertical_speed_before_move = velocity.y
 	move_and_slide()
 	_handle_slide_collisions()
 	_bump_blocks_from_below()
-	var now_wall_sliding := _should_wall_slide(input_axis)
-	if now_wall_sliding and velocity.y > WALL_SLIDE_MAX_SPEED:
-		velocity.y = WALL_SLIDE_MAX_SPEED
-	if wall_slide_active != now_wall_sliding:
-		wall_slide_active = now_wall_sliding
+	if wall_slide_active:
+		wall_slide_active = false
 		_broadcast_mobility()
 	if not was_on_floor and is_on_floor():
 		# Landing feedback: bigger puff when finishing a stomp/ground pound.
@@ -261,13 +259,19 @@ func _physics_process(delta: float) -> void:
 
 
 func _apply_gravity(delta: float) -> void:
-	if wall_slide_active and velocity.y >= 0.0:
-		velocity.y = minf(velocity.y + WALL_SLIDE_GRAVITY * delta, WALL_SLIDE_MAX_SPEED)
-		return
 	var gravity := FALLING_GRAVITY
 	if velocity.y < 0.0:
 		gravity = RISING_GRAVITY if Input.is_action_pressed("jump") else RELEASE_GRAVITY
 	velocity.y = minf(velocity.y + gravity * delta, MAX_FALL_SPEED)
+
+
+func _shape_horizontal_input(raw_axis: float) -> float:
+	var magnitude := absf(raw_axis)
+	if magnitude <= ANALOG_DEADZONE:
+		return 0.0
+	var normalized := clampf((magnitude - ANALOG_DEADZONE) / (1.0 - ANALOG_DEADZONE), 0.0, 1.0)
+	# 轻推摇杆时更细腻，推到底仍保持键盘相同的满速响应。
+	return signf(raw_axis) * pow(normalized, 1.12)
 
 
 func _try_attack() -> void:
@@ -286,15 +290,24 @@ func _try_attack() -> void:
 
 
 func _bump_blocks_from_below() -> void:
+	# 只有本帧移动前确实在向上跳时才允许顶砖。大号角色横向挤到低砖
+	# 圆角时也可能得到向下法线，不能仅凭法线把它误判为头顶碰撞。
+	if vertical_speed_before_move >= -20.0:
+		return
 	for index: int in get_slide_collision_count():
 		var hit := get_slide_collision(index)
 		var collider := hit.get_collider() as Node2D
-		if collider == null or not collider.is_in_group("blocks"):
+		if collider == null or hit.get_normal().y <= 0.5:
 			continue
 		# Ceiling hit: the collision normal points down when hitting a block
 		# from below while moving upward.
-		if hit.get_normal().y > 0.5 and collider.has_method("bump_by_player"):
+		if collider.is_in_group("blocks") and collider.has_method("bump_by_player"):
 			collider.bump_by_player(self)
+		elif collider is TileMap and has_orb_power:
+			var level := collider.get_parent()
+			if level != null and level.has_method("break_stone_at_world_point"):
+				# 碰撞点位于石块底边，向上偏移 1 像素即可稳定取得被顶中的格子。
+				level.break_stone_at_world_point(hit.get_position() - Vector2(0, 1), self)
 
 
 func _handle_slide_collisions() -> void:
@@ -303,20 +316,52 @@ func _handle_slide_collisions() -> void:
 		var collider := hit.get_collider() as Node2D
 		if collider == null or not collider.is_in_group("enemies"):
 			continue
-		handle_enemy_contact(collider)
+		handle_enemy_contact(collider, hit.get_normal())
 
 
-func handle_enemy_contact(enemy: Node2D) -> void:
+func handle_enemy_contact(enemy: Node2D, contact_normal: Vector2 = Vector2.ZERO) -> void:
 	if state == State.DEAD or enemy == null:
 		return
 	if enemy is PooledEnemy and not enemy.active:
 		return
 	# A short grace window prevents the enemy's own physics pass from turning a
 	# successful stomp into damage on the following frame.
-	if stomp_grace_timer > 0.0 and velocity.y < 0.0:
+	if stomp_grace_timer > 0.0:
+		if velocity.y < 0.0:
+			return
+		if enemy is PooledEnemy and enemy.is_sliding_shell():
+			return
+	# move_and_slide() 会在落到敌人头顶时把 y 速度清零，因此同时使用移动前
+	# 的下降速度、顶部法线与脚底穿越位置。普通跳跃落下即可踩死蘑菇/鸭子。
+	var player_bottom_offset := collision_shape.position.y + _shape_half_height(collision_shape.shape)
+	var enemy_shape_node := enemy.get_node_or_null("CollisionShape2D") as CollisionShape2D
+	var enemy_top := enemy.global_position.y - 10.0
+	if enemy_shape_node != null:
+		enemy_top = enemy.global_position.y + enemy_shape_node.position.y \
+			- _shape_half_height(enemy_shape_node.shape)
+	var previous_bottom := position_before_move.y + player_bottom_offset
+	var current_bottom := global_position.y + player_bottom_offset
+	var descending := vertical_speed_before_move > 5.0 or velocity.y > 5.0 or is_stomping
+	var top_collision := contact_normal.y < -0.45
+	var crossed_enemy_top := (
+		previous_bottom <= enemy_top + 7.0
+		and current_bottom >= enemy_top - 8.0
+		and current_bottom <= enemy_top + 11.0
+		and global_position.y < enemy.global_position.y
+	)
+	var can_stomp := descending and (top_collision or crossed_enemy_top)
+	# 缩壳中的铜甲龟不会伤害玩家；从任意方向再次碰到都会把龟壳踢出。
+	if enemy is PooledEnemy and enemy.is_waiting_shell():
+		enemy.kick_shell(self)
+		if can_stomp:
+			velocity.y = -225.0
+		else:
+			var push_direction := signf(global_position.x - enemy.global_position.x)
+			if is_zero_approx(push_direction):
+				push_direction = -facing
+			velocity.x = push_direction * 72.0
+		stomp_grace_timer = SHELL_KICK_GRACE_TIME
 		return
-	var feet_above_enemy := global_position.y <= enemy.global_position.y - 4.0
-	var can_stomp := (velocity.y > 35.0 or is_stomping) and feet_above_enemy
 	if not can_stomp:
 		take_damage(1, enemy.global_position)
 		return
@@ -331,12 +376,18 @@ func handle_enemy_contact(enemy: Node2D) -> void:
 	AudioManager.play("stomp")
 
 
+func _shape_half_height(shape: Shape2D) -> float:
+	if shape is CapsuleShape2D:
+		return (shape as CapsuleShape2D).height * 0.5
+	if shape is RectangleShape2D:
+		return (shape as RectangleShape2D).size.y * 0.5
+	if shape is CircleShape2D:
+		return (shape as CircleShape2D).radius
+	return 10.0
+
+
 func _update_locomotion_state(input_axis: float) -> void:
-	if ability_state_timer > 0.0 and state in [State.DOUBLE_JUMP, State.WALL_JUMP]:
-		return
-	if wall_slide_active:
-		_set_state(State.WALL_SLIDE)
-	elif not is_on_floor():
+	if not is_on_floor():
 		_set_state(State.JUMP if velocity.y < 0.0 else State.FALL)
 	elif absf(input_axis) > 0.01:
 		_set_state(State.RUN)
@@ -354,14 +405,6 @@ func _setup_state_machine() -> void:
 	state_machine.transitioned.connect(_on_state_machine_transitioned)
 	for state_id: int in State.values():
 		state_machine.register_state(state_id)
-	state_machine.register_state(
-		State.DOUBLE_JUMP,
-		Callable(self, "_enter_double_jump_state")
-	)
-	state_machine.register_state(
-		State.WALL_JUMP,
-		Callable(self, "_enter_wall_jump_state")
-	)
 	state_machine.register_state(
 		State.HURT,
 		Callable(),
@@ -410,54 +453,6 @@ func _perform_ground_jump() -> void:
 	_set_state(State.JUMP)
 
 
-func _perform_double_jump() -> void:
-	_set_air_jumps(air_jumps_remaining - 1)
-	velocity.y = jump_velocity * DOUBLE_JUMP_VELOCITY_FACTOR
-	jump_buffer_timer = 0.0
-	coyote_timer = 0.0
-	is_stomping = false
-	ability_state_timer = ABILITY_STATE_TIME
-	_set_state(State.DOUBLE_JUMP)
-
-
-func _perform_wall_jump() -> void:
-	var wall_normal := get_wall_normal()
-	velocity.x = wall_normal.x * WALL_JUMP_HORIZONTAL_SPEED
-	velocity.y = jump_velocity * WALL_JUMP_VERTICAL_FACTOR
-	facing = wall_normal.x
-	jump_buffer_timer = 0.0
-	coyote_timer = 0.0
-	is_stomping = false
-	wall_slide_active = false
-	wall_jump_control_timer = WALL_JUMP_CONTROL_TIME
-	ability_state_timer = ABILITY_STATE_TIME
-	_set_state(State.WALL_JUMP)
-	_broadcast_mobility()
-
-
-func _enter_double_jump_state(_previous_state: int) -> void:
-	AudioManager.play("jump")
-	_spawn_dust(Vector2(0.0, 8.0), 8.0)
-	GameEvents.ability_used.emit("DOUBLE JUMP")
-
-
-func _enter_wall_jump_state(_previous_state: int) -> void:
-	AudioManager.play("jump")
-	_spawn_dust(Vector2(-facing * 7.0, 2.0), 7.0)
-	GameEvents.ability_used.emit("WALL JUMP")
-
-
-func _can_wall_jump() -> bool:
-	return not is_on_floor() and is_on_wall_only() and absf(get_wall_normal().x) > 0.5
-
-
-func _should_wall_slide(input_axis: float) -> bool:
-	if is_on_floor() or not is_on_wall_only() or velocity.y < 0.0:
-		return false
-	var wall_normal := get_wall_normal()
-	return absf(wall_normal.x) > 0.5 and input_axis * wall_normal.x < -0.05
-
-
 func _set_air_jumps(value: int) -> void:
 	var next_value := clampi(value, 0, max_air_jumps)
 	if air_jumps_remaining == next_value:
@@ -482,6 +477,7 @@ func take_damage(amount: int, source_position: Vector2 = Vector2.ZERO) -> void:
 		_hurt_visual_feedback(source_position)
 		velocity = Vector2(signf(global_position.x - source_position.x) * 130.0, -220.0)
 		_set_state(State.HURT)
+		_auto_use_reserve_bloom()
 		return
 	if is_big:
 		# Big form absorbs one hit by shrinking back to small.
@@ -533,12 +529,10 @@ func grow() -> void:
 	if is_big:
 		return
 	is_big = true
+	growth_animation_timer = GROWTH_ANIMATION_DURATION
+	invulnerability_timer = maxf(invulnerability_timer, GROWTH_ANIMATION_DURATION)
 	AudioManager.play("grow")
-	sprite.scale = Vector2(BIG_SCALE, BIG_SCALE)
-	var capsule := collision_shape.shape as CapsuleShape2D
-	if capsule != null:
-		capsule.height = BIG_CAPSULE_HEIGHT
-		capsule.radius = BIG_CAPSULE_RADIUS
+	_apply_form_geometry()
 	power_changed.emit(get_power_level(), 2)
 	GameManager.set_carried_power_level(get_power_level())
 	_spawn_dust(Vector2(0.0, 12.0), 7.0)
@@ -552,11 +546,7 @@ func shrink() -> void:
 	is_big = false
 	has_orb_power = false
 	AudioManager.play("shrink")
-	sprite.scale = Vector2.ONE
-	var capsule := collision_shape.shape as CapsuleShape2D
-	if capsule != null:
-		capsule.height = SMALL_CAPSULE_HEIGHT
-		capsule.radius = SMALL_CAPSULE_RADIUS
+	_apply_form_geometry()
 	invulnerability_timer = 1.2
 	_update_power_visual()
 	power_changed.emit(get_power_level(), 2)
@@ -568,15 +558,54 @@ func grant_orb_power() -> void:
 	if not is_big:
 		grow()
 	if has_orb_power:
-		GameManager.add_score(500)
 		return
 	has_orb_power = true
-	invulnerability_timer = 0.5
+	invulnerability_timer = maxf(invulnerability_timer, 0.5)
 	AudioManager.play("power")
 	_update_power_visual()
 	power_changed.emit(get_power_level(), 2)
 	GameManager.set_carried_power_level(get_power_level())
 	_spawn_dust(Vector2(0.0, 4.0), 9.0)
+
+
+func collect_energy_bloom() -> BloomPickupResult:
+	if not has_orb_power:
+		grant_orb_power()
+		return BloomPickupResult.ACTIVATED
+	if reserve_bloom_count < 2:
+		_set_reserve_bloom_count(reserve_bloom_count + 1)
+		AudioManager.play("power")
+		_spawn_dust(Vector2(0.0, 2.0), 6.0)
+		GameEvents.ability_used.emit("reserve_bloom_stored")
+		return BloomPickupResult.STORED
+	GameEvents.ability_used.emit("reserve_bloom_score")
+	return BloomPickupResult.SCORE_ONLY
+
+
+func _auto_use_reserve_bloom() -> void:
+	if not has_reserve_bloom:
+		return
+	# 留出短暂的受击反馈，再像经典备用道具一样自动落下并恢复能力。
+	await get_tree().create_timer(0.42).timeout
+	if not has_reserve_bloom or has_orb_power or state == State.DEAD:
+		return
+	_set_reserve_bloom_count(reserve_bloom_count - 1)
+	grant_orb_power()
+	GameEvents.ability_used.emit("reserve_bloom_auto_used")
+
+
+func restore_reserve_bloom(count: int) -> void:
+	reserve_bloom_count = clampi(count, 0, 2)
+	reserve_bloom_changed.emit(reserve_bloom_count)
+
+
+func _set_reserve_bloom_count(count: int) -> void:
+	count = clampi(count, 0, 2)
+	if reserve_bloom_count == count:
+		return
+	reserve_bloom_count = count
+	GameManager.set_carried_reserve_bloom_count(reserve_bloom_count)
+	reserve_bloom_changed.emit(reserve_bloom_count)
 
 
 func lose_orb_power() -> void:
@@ -608,11 +637,7 @@ func restore_power_level(level: int) -> void:
 	level = clampi(level, 0, 2)
 	is_big = level >= 1
 	has_orb_power = level >= 2
-	sprite.scale = Vector2(BIG_SCALE, BIG_SCALE) if is_big else Vector2.ONE
-	var capsule := collision_shape.shape as CapsuleShape2D
-	if capsule != null:
-		capsule.height = BIG_CAPSULE_HEIGHT if is_big else SMALL_CAPSULE_HEIGHT
-		capsule.radius = BIG_CAPSULE_RADIUS if is_big else SMALL_CAPSULE_RADIUS
+	_apply_form_geometry()
 	_update_power_visual()
 	power_changed.emit(get_power_level(), 2)
 
@@ -661,8 +686,6 @@ func restore_after_respawn() -> void:
 	stomp_chain = 0
 	stomp_grace_timer = 0.0
 	air_jumps_remaining = max_air_jumps
-	wall_jump_control_timer = 0.0
-	ability_state_timer = 0.0
 	wall_slide_active = false
 	jump_was_pressed = Input.is_action_pressed("jump")
 	attack_was_pressed = Input.is_action_pressed("attack")
@@ -672,13 +695,9 @@ func restore_after_respawn() -> void:
 	if is_big:
 		is_big = false
 		has_orb_power = false
-		sprite.scale = Vector2.ONE
-		var capsule := collision_shape.shape as CapsuleShape2D
-		if capsule != null:
-			capsule.height = SMALL_CAPSULE_HEIGHT
-			capsule.radius = SMALL_CAPSULE_RADIUS
 	else:
 		has_orb_power = false
+	_apply_form_geometry()
 	collision_shape.set_deferred("disabled", false)
 	_update_power_visual()
 	GameManager.set_carried_power_level(0)
@@ -730,19 +749,56 @@ func _play_state_animation() -> void:
 			sprite.play(&"hurt")
 			sprite.frame = 1
 			sprite.pause()
-		State.DOUBLE_JUMP, State.WALL_JUMP:
-			sprite.play(&"jump")
-		State.WALL_SLIDE:
-			sprite.play(&"fall")
 
 
 func _update_sprite_visual() -> void:
 	sprite.flip_h = facing < 0.0
+	var base_scale := BIG_SCALE if is_big else 1.0
+	var pose_scale := Vector2.ONE
+	var pose_y := BIG_SPRITE_OFFSET_Y if is_big else SMALL_SPRITE_OFFSET_Y
+	match state:
+		State.RUN:
+			pose_scale = Vector2(1.025, 0.975)
+			pose_y += 1.0 if sprite.frame % 2 == 0 else 0.0
+		State.JUMP:
+			pose_scale = Vector2(0.94, 1.06)
+		State.FALL:
+			pose_scale = Vector2(1.055, 0.95)
+		State.ATTACK:
+			pose_scale = Vector2(1.04, 0.97)
+		State.HURT:
+			pose_scale = Vector2(1.08, 0.92)
+	if growth_animation_timer > 0.0 and is_big:
+		var growth_progress := 1.0 - growth_animation_timer / GROWTH_ANIMATION_DURATION
+		var eased_progress := ease(clampf(growth_progress, 0.0, 1.0), -2.2)
+		base_scale = lerpf(1.0, BIG_SCALE, eased_progress)
+		pose_y = lerpf(SMALL_SPRITE_OFFSET_Y, BIG_SPRITE_OFFSET_Y, eased_progress)
+		# Three readable squash/stretch beats make the form change visible even
+		# when the player is already moving or the camera is scrolling.
+		var pulse := sin(growth_progress * PI * 3.0) * (1.0 - growth_progress)
+		pose_scale *= Vector2(1.0 - pulse * 0.12, 1.0 + pulse * 0.18)
+		sprite.modulate = Color(1.0, 1.0 + absf(pulse) * 0.45, 1.0 + absf(pulse) * 0.65, 1.0)
+	else:
+		sprite.modulate = Color.WHITE
+	sprite.scale = Vector2(base_scale, base_scale) * pose_scale
+	sprite.position = Vector2(0, pose_y)
 	sprite.visible = not (
 		state != State.DEAD
+		and growth_animation_timer <= 0.0
 		and invulnerability_timer > 0.0
 		and int(invulnerability_timer * 16.0) % 2 == 0
 	)
+
+
+func _apply_form_geometry() -> void:
+	# 两种形态共用同一脚底基线，长大时只向上展开，避免穿地或突然卡住。
+	var capsule := collision_shape.shape as CapsuleShape2D
+	if capsule != null:
+		capsule.height = BIG_CAPSULE_HEIGHT if is_big else SMALL_CAPSULE_HEIGHT
+		capsule.radius = BIG_CAPSULE_RADIUS if is_big else SMALL_CAPSULE_RADIUS
+	collision_shape.position.y = BIG_COLLISION_OFFSET_Y if is_big else SMALL_COLLISION_OFFSET_Y
+	sprite.scale = Vector2(BIG_SCALE, BIG_SCALE) if is_big else Vector2.ONE
+	sprite.position.y = BIG_SPRITE_OFFSET_Y if is_big else SMALL_SPRITE_OFFSET_Y
 
 
 func _on_sprite_frame_changed() -> void:

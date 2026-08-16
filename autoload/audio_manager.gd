@@ -54,6 +54,8 @@ func _build_sounds() -> void:
 	_streams["death"] = _square(500.0, 70.0, 0.65, 0.4)
 	_streams["land"] = _noise_burst(0.08, 0.3)
 	_streams["ui"] = _square(880.0, 880.0, 0.07, 0.35)
+	_streams["pipe"] = _square(310.0, 92.0, 0.3, 0.34)
+	_streams["secret"] = _arpeggio([392.0, 523.0, 659.0, 784.0, 1047.0], 0.075, 0.36)
 
 
 func _square(freq_start: float, freq_end: float, duration: float, volume: float) -> AudioStreamWAV:

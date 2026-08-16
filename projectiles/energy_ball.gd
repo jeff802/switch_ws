@@ -16,6 +16,8 @@ var pulse: float = 0.0
 
 func _ready() -> void:
 	add_to_group("player_projectiles")
+	z_index = 14
+	z_as_relative = false
 
 
 func activate(new_direction: float, new_source: Node) -> void:
@@ -24,6 +26,8 @@ func activate(new_direction: float, new_source: Node) -> void:
 	lifetime = MAX_LIFETIME
 	active = true
 	visible = true
+	modulate = Color.WHITE
+	self_modulate = Color.WHITE
 	velocity = Vector2(direction * SPEED, -90.0)
 	set_physics_process(true)
 	queue_redraw()
@@ -48,7 +52,12 @@ func _physics_process(delta: float) -> void:
 	pulse += delta
 	lifetime -= delta
 	queue_redraw()
-	if lifetime <= 0.0 or global_position.y > 340.0:
+	var vertical_limit := 340.0
+	if source != null:
+		var level := source.get_parent()
+		if level != null and level.get("inside_bonus_dungeon") == true:
+			vertical_limit = 700.0
+	if lifetime <= 0.0 or global_position.y > vertical_limit:
 		ObjectPool.release_projectile(self)
 
 
@@ -59,9 +68,7 @@ func _handle_collision(collision: KinematicCollision2D) -> void:
 	if body == source:
 		return
 	if body != null and body.is_in_group("enemies") and body.has_method("take_damage"):
-		body.take_damage(3 if body is PooledEnemy else 1, false)
-		GameManager.add_score(25)
-		ObjectPool.release_projectile(self)
+		hit_damageable(body)
 		return
 	var normal := collision.get_normal()
 	if normal.y < -0.55:
@@ -71,9 +78,21 @@ func _handle_collision(collision: KinematicCollision2D) -> void:
 		ObjectPool.release_projectile(self)
 
 
+func hit_damageable(target: Node) -> void:
+	if not active or target == null or not target.has_method("take_damage"):
+		return
+	target.take_damage(3 if target is PooledEnemy else 1, false)
+	GameManager.add_score(25)
+	ObjectPool.release_projectile(self)
+
+
 func _draw() -> void:
-	var radius := 4.0 + sin(pulse * 18.0) * 0.45
-	PixelArt.diamond(self, Vector2.ZERO, radius + 3.0, Color(0.2, 0.9, 1.0, 0.22))
-	PixelArt.diamond(self, Vector2.ZERO, radius, Color("57d8eb"))
-	PixelArt.rect(self, Vector2(-5.0 * direction, -1), Vector2(3, 2), Color("ed8a47"))
-	PixelArt.rect(self, Vector2(-1, -1), Vector2(2, 2), Color.WHITE)
+	var radius := 5.2 + sin(pulse * 18.0) * 0.45
+	# 深色描边与暖色弹芯在蓝天、雪地、洞穴和城市背景上都保持清晰。
+	PixelArt.diamond(self, Vector2.ZERO, radius + 5.0, Color(0.05, 0.1, 0.14, 0.72))
+	PixelArt.diamond(self, Vector2.ZERO, radius + 3.0, Color(0.2, 0.95, 1.0, 0.72))
+	PixelArt.diamond(self, Vector2.ZERO, radius + 0.5, Color("ff7438"))
+	PixelArt.diamond(self, Vector2.ZERO, radius - 2.0, Color("ffe45e"))
+	PixelArt.rect(self, Vector2(-10.0 * direction - 2.0, -2), Vector2(6, 4), Color("18323c"))
+	PixelArt.rect(self, Vector2(-9.0 * direction - 1.0, -1), Vector2(5, 2), Color("7ff6ff"))
+	PixelArt.rect(self, Vector2(-1.5, -1.5), Vector2(3, 3), Color.WHITE)

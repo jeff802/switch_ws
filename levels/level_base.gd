@@ -17,10 +17,12 @@ const BLOCK_SCENE := preload("res://world/block.tscn")
 const PIPE_SCENE := preload("res://world/pipe.tscn")
 const FLAGPOLE_SCENE := preload("res://world/flagpole.tscn")
 const CACTUS_SCENE := preload("res://world/clockwork_cactus.tscn")
+const BONUS_DECOR_SCRIPT := preload("res://world/bonus_dungeon_decor.gd")
+const BREAKABLE_STONE_MARKER_SCRIPT := preload("res://world/breakable_stone_marker.gd")
 const SPAWNER_SCENE := preload("res://enemies/enemy_spawner.tscn")
 const BOSS_SCENE := preload("res://enemies/boss.tscn")
 
-@export_enum("forest", "cave", "snow", "city") var biome: String = "forest"
+@export_enum("forest", "cave", "snow", "city", "ruins", "volcano", "night") var biome: String = "forest"
 @export var level_id: String = "forest"
 @export var time_limit: float = 180.0
 @export var spawn_point: Vector2 = Vector2(64, 150)
@@ -32,6 +34,16 @@ const BOSS_SCENE := preload("res://enemies/boss.tscn")
 @onready var entity_root: Node2D = $EntityRoot
 @onready var player: ForestMechanic = $Player
 @onready var hud: GameHUD = $HUD
+
+var breakable_stone_cells: Dictionary = {}
+var bonus_dungeon_built: bool = false
+var bonus_variant: int = 0
+var bonus_entry_pipe: GearPipe
+var bonus_exit_pipe: GearPipe
+var bonus_return_position: Vector2 = Vector2.ZERO
+var bonus_spawn_position := Vector2(56, 590)
+var inside_bonus_dungeon: bool = false
+var pipe_travel_busy: bool = false
 
 
 func _ready() -> void:
@@ -45,16 +57,18 @@ func _ready() -> void:
 		level_id,
 		time_limit,
 		spawn_point,
-		level_id == "forest" or level_id == "world_1_1"
+		level_id == "forest" or level_id == "world_1_1" or level_id == "stage_01"
 	)
 	player.global_position = GameManager.checkpoint_position
 	player.restore_power_level(GameManager.carried_power_level)
+	player.restore_reserve_bloom(GameManager.carried_reserve_bloom_count)
 	hud.bind_player(player)
 	queue_redraw()
 
 
 func _process(_delta: float) -> void:
-	if player.global_position.y > 330.0 and player.state != ForestMechanic.State.DEAD:
+	var fall_limit := 700.0 if inside_bonus_dungeon else 330.0
+	if player.global_position.y > fall_limit and player.state != ForestMechanic.State.DEAD:
 		player.take_damage(player.max_health, player.global_position + Vector2(0, -1))
 
 
@@ -64,11 +78,9 @@ func _build_level() -> void:
 
 
 func _configure_camera() -> void:
-	# Keep the player around the left third of the screen so the upcoming
-	# section is revealed as soon as they move right. With the 640px viewport,
-	# a centered camera otherwise stays pinned to the first screen until the
-	# player has walked more than 250px.
-	player.camera.position.x = camera_look_ahead
+	# 固定前瞻保持原先的镜头手感，不随朝向、速度或动作来回移动。
+	player.camera.position = Vector2(camera_look_ahead, -28.0)
+	player.camera.offset = Vector2.ZERO
 	player.camera.limit_left = 0
 	player.camera.limit_right = level_width_tiles * TILE_SIZE
 	player.camera.limit_top = 0
@@ -151,6 +163,12 @@ func _biome_palette() -> Array[Color]:
 			return [Color("6b8795"), Color("d7edf0"), Color("8cb8c4"), Color("506e7d")]
 		"city":
 			return [Color("35464d"), Color("65767a"), Color("a36a49"), Color("29383f")]
+		"ruins":
+			return [Color("4e6049"), Color("7d8d68"), Color("8b6544"), Color("36443a")]
+		"volcano":
+			return [Color("493035"), Color("77423a"), Color("a95332"), Color("30252b")]
+		"night":
+			return [Color("35364f"), Color("545572"), Color("744e68"), Color("26273b")]
 		_:
 			return [Color("3c6548"), Color("6fa657"), Color("7b5b3d"), Color("31513b")]
 
@@ -182,6 +200,58 @@ func erase_rect(x: int, y: int, width: int, height: int) -> void:
 	for cell_y: int in range(y, y + height):
 		for cell_x: int in range(x, x + width):
 			tile_map.erase_cell(0, Vector2i(cell_x, cell_y))
+
+
+func register_breakable_stone_rect(x: int, y: int, width: int, height: int = 1) -> void:
+	for cell_y: int in range(y, y + height):
+		for cell_x: int in range(x, x + width):
+			var cell := Vector2i(cell_x, cell_y)
+			if breakable_stone_cells.has(cell):
+				continue
+			var marker := BREAKABLE_STONE_MARKER_SCRIPT.new() as BreakableStoneMarker
+			marker.z_index = -1
+			entity_root.add_child(marker)
+			marker.global_position = tile_map.to_global(tile_map.map_to_local(cell))
+			breakable_stone_cells[cell] = marker
+
+
+func break_stone_at_world_point(world_point: Vector2, body: Node) -> bool:
+	var local_point := tile_map.to_local(world_point)
+	return break_stone_cell(tile_map.local_to_map(local_point), body)
+
+
+func break_stone_cell(cell: Vector2i, body: Node) -> bool:
+	if body == null or body.get("has_orb_power") != true:
+		return false
+	if not breakable_stone_cells.has(cell) or tile_map.get_cell_source_id(0, cell) < 0:
+		return false
+	var marker := breakable_stone_cells[cell] as Node
+	breakable_stone_cells.erase(cell)
+	if is_instance_valid(marker):
+		marker.queue_free()
+	tile_map.erase_cell(0, cell)
+	_spawn_stone_fragments(tile_map.to_global(tile_map.map_to_local(cell)))
+	AudioManager.play("brick")
+	GameManager.add_score(75)
+	return true
+
+
+func _spawn_stone_fragments(origin: Vector2) -> void:
+	var colors: Array[Color] = [Color("7f9194"), Color("a8b8b7"), Color("596b70"), Color("d1dcce")]
+	for index: int in 4:
+		var fragment := Sprite2D.new()
+		fragment.texture = PixelArt.circle_texture(colors[index], 5)
+		fragment.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		fragment.global_position = origin + Vector2(-4 + index * 3, -2 + (index % 2) * 3)
+		fragment.z_index = 7
+		entity_root.add_child(fragment)
+		var horizontal := -1.0 if index % 2 == 0 else 1.0
+		var destination := origin + Vector2(horizontal * (12.0 + index * 2.0), 25.0)
+		var tween := create_tween()
+		tween.tween_property(fragment, "global_position", destination, 0.48)
+		tween.parallel().tween_property(fragment, "rotation", horizontal * 2.8, 0.48)
+		tween.parallel().tween_property(fragment, "modulate:a", 0.0, 0.45)
+		tween.tween_callback(fragment.queue_free)
 
 
 func add_collectible(world_position: Vector2, heals: bool = false) -> GearCoin:
@@ -232,8 +302,118 @@ func add_block(world_position: Vector2, block_type: int, content: int = 0) -> Ge
 	}) as GearBlock
 
 
-func add_pipe(world_position: Vector2, pipe_height: float = 48.0) -> GearPipe:
-	return add_entity(PIPE_SCENE, world_position, {"pipe_height": pipe_height}) as GearPipe
+func add_pipe(
+	world_position: Vector2,
+	pipe_height: float = 48.0,
+	travel_mode: int = GearPipe.TravelMode.NONE,
+	dungeon_variant: int = 0
+) -> GearPipe:
+	var pipe := add_entity(PIPE_SCENE, world_position, {
+		"pipe_height": pipe_height,
+		"travel_mode": travel_mode,
+	}) as GearPipe
+	if travel_mode == GearPipe.TravelMode.ENTER_BONUS:
+		bonus_entry_pipe = pipe
+		if not bonus_dungeon_built:
+			_build_bonus_dungeon(dungeon_variant)
+	elif travel_mode == GearPipe.TravelMode.EXIT_BONUS:
+		bonus_exit_pipe = pipe
+	return pipe
+
+
+func _build_bonus_dungeon(dungeon_variant: int) -> void:
+	bonus_dungeon_built = true
+	bonus_variant = dungeon_variant
+	var decor := BONUS_DECOR_SCRIPT.new() as BonusDungeonDecor
+	decor.position = Vector2(0, 320)
+	decor.z_index = -1
+	generated_backdrop.add_child(decor)
+	# 640×360 的完整副本房间，镜头切换后不会露出主关卡或空白区域。
+	solid_rect(0, 20, 40, 1, 1)
+	solid_rect(0, 39, 40, 3, 1)
+	solid_rect(0, 21, 1, 18, 1)
+	solid_rect(39, 21, 1, 18, 1)
+	solid_rect(10, 35, 7, 1, 2)
+	register_breakable_stone_rect(10, 35, 7)
+	solid_rect(23, 33, 6, 1, 2)
+	# 两个明示强化砖让空手进入副本的玩家依次取得大形态和能量花。
+	for offset: int in 5:
+		var content := GearBlock.Content.MUSHROOM if offset in [1, 3] else GearBlock.Content.NONE
+		var type := GearBlock.Type.QUESTION if offset in [1, 3] else GearBlock.Type.BRICK
+		add_block(Vector2((17 + offset) * TILE_SIZE + 8, 35 * TILE_SIZE + 8), type, content)
+	add_collectible_arc(Vector2(176, 535), 7, 18.0, 22.0)
+	add_collectible_arc(Vector2(424, 500), 7, 18.0, 25.0)
+	add_entity(SPRING_SCENE, Vector2(19 * TILE_SIZE + 8, 613), {"launch_strength": 525.0})
+	var enemy_kind := PooledEnemy.Kind.BOUNCECAP if dungeon_variant == 0 else PooledEnemy.Kind.SHELLBACK
+	add_enemy(Vector2(26 * TILE_SIZE + 8, 606), enemy_kind, 45.0, false)
+	add_pipe(Vector2(36 * TILE_SIZE + 8, 624), 40.0, GearPipe.TravelMode.EXIT_BONUS)
+
+
+func show_pipe_prompt(travel_mode: int) -> void:
+	if travel_mode == GearPipe.TravelMode.ENTER_BONUS:
+		hud.show_context_hint("↓ / S / 手柄下方向：进入奖励地窖")
+	else:
+		hud.show_context_hint("↓ / S / 手柄下方向：返回主关卡")
+
+
+func hide_pipe_prompt() -> void:
+	hud.hide_context_hint()
+
+
+func travel_through_pipe(pipe: GearPipe, body: Node2D, travel_mode: int) -> void:
+	if pipe_travel_busy or body != player:
+		pipe.unlock_travel()
+		return
+	pipe_travel_busy = true
+	hide_pipe_prompt()
+	GameManager.run_active = false
+	player.controls_locked = true
+	player.velocity = Vector2.ZERO
+	player.invulnerability_timer = maxf(player.invulnerability_timer, 0.8)
+	player.set_physics_process(false)
+	player.sprite.play(&"idle")
+	var previous_z := player.z_index
+	var previous_scale := player.sprite.scale
+	player.z_index = 2
+	AudioManager.play("pipe")
+	var pipe_top := pipe.global_position.y - pipe.pipe_height
+	var enter_tween := create_tween().set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	enter_tween.tween_property(player, "global_position:y", pipe_top + 13.0, 0.3)
+	enter_tween.parallel().tween_property(player.sprite, "scale:x", previous_scale.x * 0.82, 0.3)
+	await enter_tween.finished
+	if travel_mode == GearPipe.TravelMode.ENTER_BONUS:
+		bonus_return_position = pipe.global_position + Vector2(0, -pipe.pipe_height - 18.0)
+		inside_bonus_dungeon = true
+		player.global_position = bonus_spawn_position
+		_configure_bonus_camera()
+		hud.show_area_banner("奖励副本 · 两次强化后可发射能量弹")
+		AudioManager.play("secret")
+	else:
+		inside_bonus_dungeon = false
+		player.global_position = bonus_return_position
+		_configure_camera()
+		hud.show_area_banner("返回第 %02d 关" % int(GameManager.campaign_stage + 1))
+	player.z_index = previous_z
+	player.sprite.scale = previous_scale
+	player.camera.reset_smoothing()
+	await get_tree().process_frame
+	player.set_physics_process(true)
+	player.controls_locked = false
+	player.velocity = Vector2.ZERO
+	GameManager.run_active = true
+	pipe_travel_busy = false
+	pipe.unlock_travel()
+
+
+func _configure_bonus_camera() -> void:
+	player.camera.position = Vector2(0.0, -28.0)
+	player.camera.offset = Vector2.ZERO
+	player.camera.limit_left = 0
+	player.camera.limit_right = 640
+	player.camera.limit_top = 320
+	player.camera.limit_bottom = 680
+	player.camera.make_current()
+	player.camera.reset_smoothing()
 
 
 func add_flag(world_position: Vector2, unlock_id: String = "", next_scene: String = "") -> GearFlagpole:
@@ -359,6 +539,27 @@ func _draw() -> void:
 			sun_color = Color(1.0, 0.72, 0.42, 1.0)
 			cloud_color = Color(0.7, 0.8, 0.85, 0.07)
 			cloud_count = 2
+		"ruins":
+			sky_top = Color("243b45")
+			sky_mid = Color("456a68")
+			sky_horizon = Color("7e9b79")
+			sun_color = Color("e9e2a5")
+			cloud_color = Color(0.86, 0.95, 0.85, 0.16)
+			cloud_count = 3
+		"volcano":
+			sky_top = Color("210f1d")
+			sky_mid = Color("55222a")
+			sky_horizon = Color("a84b32")
+			sun_color = Color("ff8f42")
+			cloud_color = Color(0.28, 0.18, 0.2, 0.42)
+			cloud_count = 3
+		"night":
+			sky_top = Color("0b1028")
+			sky_mid = Color("1d2850")
+			sky_horizon = Color("4b5078")
+			sun_color = Color("bde8ff")
+			cloud_color = Color(0.7, 0.76, 0.95, 0.1)
+			cloud_count = 2
 		_:
 			sky_top = Color("3f6fc4")
 			sky_mid = Color("5a8fe8")
@@ -377,6 +578,9 @@ func _draw() -> void:
 		"cave": below_ground = Color("0b1116")
 		"snow": below_ground = Color("273d47")
 		"city": below_ground = Color("131d24")
+		"ruins": below_ground = Color("27352d")
+		"volcano": below_ground = Color("210f14")
+		"night": below_ground = Color("121326")
 		_: below_ground = Color("4a3527")
 	draw_rect(Rect2(-400, 256, width + 800, 44), below_ground, true)
 	# Sun with a soft glow.
@@ -394,6 +598,9 @@ func _draw() -> void:
 		"cave": _draw_cave_backdrop(width)
 		"snow": _draw_snow_backdrop(width)
 		"city": _draw_city_backdrop(width)
+		"ruins": _draw_ruins_backdrop(width)
+		"volcano": _draw_volcano_backdrop(width)
+		"night": _draw_night_backdrop(width)
 
 
 func _draw_cloud(center: Vector2, color: Color, scale: float) -> void:
@@ -453,3 +660,40 @@ func _draw_city_backdrop(width: float) -> void:
 		PixelArt.rect(self, Vector2(x, 65 + (x % 3) * 14), Vector2(55, 140), Color("24363e"))
 		for y: int in range(82, 170, 20):
 			PixelArt.rect(self, Vector2(x + 9, y), Vector2(5, 7), Color("c78945"))
+
+
+func _draw_ruins_backdrop(width: float) -> void:
+	for x: int in range(-40, int(width), 150):
+		PixelArt.rect(self, Vector2(x, 112), Vector2(18, 82), Color("354a42"))
+		PixelArt.rect(self, Vector2(x - 7, 106), Vector2(32, 8), Color("526b57"))
+		PixelArt.rect(self, Vector2(x + 55, 146), Vector2(74, 48), Color("3d5145"))
+		PixelArt.rect(self, Vector2(x + 62, 134), Vector2(13, 12), Color("6c7f60"))
+	for x: int in range(35, int(width), 230):
+		draw_circle(Vector2(x, 174), 20.0, Color("426c4a"))
+		draw_circle(Vector2(x + 21, 181), 13.0, Color("5b8052"))
+
+
+func _draw_volcano_backdrop(width: float) -> void:
+	for x: int in range(-100, int(width), 260):
+		draw_colored_polygon(PackedVector2Array([
+			Vector2(x, 194), Vector2(x + 98, 70), Vector2(x + 150, 194),
+		]), Color("3b2026"))
+		draw_colored_polygon(PackedVector2Array([
+			Vector2(x + 77, 96), Vector2(x + 98, 70), Vector2(x + 118, 97),
+		]), Color("c54b32"))
+	for x: int in range(0, int(width), 96):
+		PixelArt.rect(self, Vector2(x, 185), Vector2(54, 9), Color("702b2a"))
+		PixelArt.rect(self, Vector2(x + 12, 187), Vector2(23, 3), Color("ff713c"))
+
+
+func _draw_night_backdrop(width: float) -> void:
+	for x: int in range(22, int(width), 71):
+		var y := 26 + posmod(x * 17, 104)
+		PixelArt.rect(self, Vector2(x, y), Vector2(2, 2), Color(0.8, 0.93, 1.0, 0.8))
+	for x: int in range(-80, int(width), 190):
+		draw_colored_polygon(PackedVector2Array([
+			Vector2(x, 194), Vector2(x + 88, 74), Vector2(x + 190, 194),
+		]), Color("293151"))
+		draw_colored_polygon(PackedVector2Array([
+			Vector2(x + 60, 113), Vector2(x + 88, 74), Vector2(x + 118, 114),
+		]), Color("67739b"))

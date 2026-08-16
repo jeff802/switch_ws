@@ -1,172 +1,116 @@
-# Forest Gear — Classic 8-Bit Platformer
+# 森林齿轮——原创 8 位横版闯关游戏
 
-Forest Gear is an original 2D pixel platformer for Godot 4 (GL Compatibility),
-styled after the classic 8-bit side-scrolling platformers of the 1980s. All art,
-levels and names are original and do not copy Nintendo's characters, maps,
-sprites, audio or other protected assets.
+《森林齿轮》是一款使用 Godot 4 制作的原创 2D 像素平台游戏。玩法节奏参考了经典横版闯关作品，但角色、敌人、关卡、美术和名称均为原创内容。
 
-## Run
+## 运行
 
-1. Open this folder in Godot 4.3 or newer (project is saved as 4.7).
-2. Press **F5** to start `res://levels/test_level.tscn`.
-3. The campaign starts at World 1-1 and continues through World 8-4.
+1. 使用 Godot 4.3 或更高版本打开本目录（项目当前保存版本为 4.7）。
+2. 按 F5 运行 `res://levels/test_level.tscn`。
+3. 战役包含 20 个连续关卡，通关后会显示完整通关提示。
 
-The game uses a 640×360 base resolution and expands responsively to the full
-browser viewport. The HUD and touch controls follow the viewport edges, and
-the in-game **全屏** button switches between browser-window and fullscreen
-play.
+基础画面为 640×360，会随浏览器窗口自适应。虚拟按键默认只在手机或真实触屏设备显示，电脑浏览器不会显示；暂停设置中也可改为“总是显示”或“总是隐藏”。右上角常驻“选关 / 设置”入口，Web 版顶部的“全屏”按钮可切换显示模式。
 
-Headless project validation:
+## 操作
+
+| 动作 | 键盘 | Xbox 手柄 | PlayStation 手柄 |
+|---|---|---|---|
+| 左右移动 | A / D | 左摇杆 / 方向键 | 左摇杆 / 方向键 |
+| 跳跃 | 空格 | A | 叉 |
+| 加速跑 | K | X | 方块 |
+| 发射能量弹 | J | B | 圆圈 |
+| 下砸 | S | Y | 三角 |
+| 进入管道 | S / 下方向 | 左摇杆下 / 十字键下 | 左摇杆下 / 十字键下 |
+| 从检查点重载 | R | — | — |
+| 暂停 / 设置 / 选关 | Esc | 菜单键 | Options |
+
+普通跳跃后从敌人上方落下即可完成踩踏，不需要额外按“下砸”。下砸键仍可用于更快落地和主动攻击。
+
+首次开始会先选择角色与简单、普通或困难难度。点击右上角“选关 / 设置”或按 Esc / 手柄菜单键即可打开完整界面，其中提供全部二十关的中文选关列表；难度在继续时重载生效。进入所选关卡会从该关起点开始一轮新的单关挑战，并清空旧关卡的检查点、分数、金币和携带能力。
+
+## 二十关战役
+
+二十个关卡均采用独立编排，不再重复套用同一种自动生成段落。前十关完成基础教学与第一次综合考验：
+
+1. 草地教学：低砖组、基础管道与安全的首次踩踏。
+2. 断桥试炼：逐步引入坑洞、弹簧和移动平台。
+3. 纵深洞穴：利用多层石台和弹簧构成立体路线，末段迎战会冲锋、震地并锁定落石的“岩窟钻虎机”。
+4. 雪阶攀登：阶梯石台、落石与空中敌人组合。
+5. 城市屋顶：长跳、移动平台和隐藏奖励区。
+6. 管道花园：安全管沿、固定与伸缩仙人掌交替出现，末段迎战会散射种子并召唤敌人的“荆棘反应炉”。
+7. 水晶升降区：纵向弹跳、上层奖励和隐蔽通路。
+8. 冰封渡口：宽坑移动平台、落石和发条鸭追逐。
+9. 熔炉冲刺：综合考验管道、石台、弹簧、飞虫与坑洞。
+10. 核心要塞：迎战会高速冲锋、震地、召唤飞虫并释放齿轮弹幕的“齿轮心脏守卫”。
+
+后十关继续引入复合墙体、更多隐藏路线和四名新首领：
+
+11. 遗迹树冠：苔石高台、奖励地窖、移动仙人掌与上下双路线。
+12. 回声矿井：纵深跳台、落石、飞虫巡线和隐蔽强化砖。
+13. 风暴铸厂：雷铸平台与“雷铸风暴机”的雷弧弹幕。
+14. 冰川折返：连续折返高台、移动坑桥和高空金币路线。
+15. 岩浆水道：熔岩长跳、伸缩机关和多层可碎石台。
+16. 地核深潜：垂直碎石路线与会喷发熔核的“熔岩巨像”。
+17. 藤蔓钟塔：遗迹阶梯、奖励地窖与空地交替追击。
+18. 月霜王庭：月夜冰台与会召唤铜甲龟的“霜冠统领”。
+19. 皇家齿轮道：长距离综合试炼，组合此前全部移动机制。
+20. 时序王座：最终竞技场与拥有七相弹幕、机械增援的“时序王座”。
+
+通过第 20 关后会自动打开通关结算菜单，可以继续浏览最终关、从第 01 关重新开始，或直接选择任意关卡重玩。
+
+砖块、石砖和弹簧都按“先提示、后运用、再变化”的节奏布置。砖组使用波浪、阶梯、冠形和中央悬空等错层轮廓。材质从陶土、晶岩、冻砖和铆接铜砖，继续演进到苔石、熔岩砖、深海晶砖、月辉砖和王座砖。前四关不放隐藏强化砖，第 5 关起逐步引入，后十关每关保留一处隐藏强化；明示强化仍占多数。多金币砖同样只有少数采用普通砖伪装。
+
+## 主要玩法
+
+- 金币：收集后增加金币数和分数。
+- 问号块：从下方顶击可获得金币；绿色花蕾徽记表示蘑菇或能量花，三层金币徽记表示可以连续顶出金币。
+- 土砖：小型角色只能顶动，强化后可以击碎；少数外观相同的隐藏砖含强化蘑菇、能量花或可连续顶出的金币，无法从表面直接分辨。
+- 石砖：带暖色裂纹的是可碎石砖，仅“能量·碎石”状态能从下方顶开；无裂纹承重石砖在任何状态下都不可破坏。
+- 强化蘑菇：角色变大并可抵挡一次伤害。
+- 能量花：角色先进入强化状态，再拾取能量花即可进入“能量·碎石”状态，同时获得能量弹和向上顶碎石块的能力。满能量时继续拾取可储存最多两朵；每次受伤失去能量能力后自动消耗一朵并恢复。双格已满时，多余能力花转换为 1500 分。
+- 管道与仙人掌：管沿保留安全站立区域，伸缩型按固定周期行动；仙人掌可见尖刺与 14×34px 伤害框同步移动，能量弹可将其消灭并保留下方管道。
+- 奖励管道：带青铜边、暗色管口和浮动箭头的无仙人掌管道可向下进入“齿轮地窖”；副本不限制射击，并提供两个明示强化砖，让空手进入的玩家依次取得大形态和能量花。
+- 弹跳蘑菇、甲虫机器人、齿轮飞虫和发条鸭：均可从上方直接踩踏。
+- 铜甲龟：踩一次缩壳，再碰一次会踢出滑撞；滑壳可撞倒敌人，也可从上方踩停。
+- 检查点：保存关卡、分数、金币和当前能力。
+- 递进首领：第 3、6、10、13、16、18、20 关使用七名不同首领、独立配色与技能组；生命值逐级提升，半血后攻击间隔缩短，击败后开启出口能量门。
+
+能量弹使用深色描边、青色外焰和橙黄高亮弹芯，并固定绘制在前景层，在蓝天、雪地、洞穴和城市背景上都保持清晰。
+
+每关至少安排两处强化道具机会：小型状态先取得强化蘑菇，强化状态再次取得同类奖励时会改为能量花，因此从选关菜单直接进入后仍能在关内获得碎石能力。
+
+小角色使用约 13×25px 的碰撞范围，小于单块砖的 16px 宽度；大角色约为 20×35px。长大时会播放向上展开、三段伸缩闪光与尘粒动画，同时保持脚底基线不变；砖块通道至少保留 48px 净空。
+
+## 角色与设置
+
+右上角“选关 / 设置”菜单已经完整汉化，可选关，并可调整音效开关、音量、触控按钮显示方式和角色：
+
+- 齿轮工：速度与跳跃均衡。
+- 烈焰：奔跑更快，但跳跃稍低。
+- 霜跃：跳得更高，但奔跑稍慢。
+
+三档难度会真实改变 20 关内容：简单增加明显补给并减少部分敌人；普通使用标准编排；困难减少沿途金币、增加敌人编组与生命，并让首领获得更高生命、速度和追加弹幕。
+
+所有音效均在运行时程序化生成，不包含外部音频素材。设置保存在 `user://settings.json`。
+
+Web 与桌面界面使用随项目打包的 Noto Sans SC 字体，确保中文在浏览器中不会显示为方框；字体许可证见 `assets/fonts/OFL-1.1.txt`。
+
+## 保存
+
+`user://forest_gear_save.json` 使用带版本号的 JSON 格式，保存最高分、按键绑定、当前关卡、分数、金币、当前能力、两格备用能力花、已完成关卡和检查点。旧版单格备用花会迁移到第一格，越界关卡进度会安全收敛到第 20 关。
+
+## 自动检查
 
 ```bash
 godot4 --headless --path . --editor --quit
-```
-
-## Controls
-
-| Action | Keyboard | Xbox-style pad | PlayStation-style pad |
-|---|---|---|---|
-| Move | A / D | Left stick / D-pad | Left stick / D-pad |
-| Jump | Space | A | Cross |
-| Run | K | X | Square |
-| Energy bolt | J | B | Circle |
-| Stomp / Ground pound | S | Y | Triangle |
-| Reload from checkpoint | R | — | — |
-| Pause / Settings | Escape | Menu | Options |
-
-Android uses multi-touch virtual buttons for move, run, jump, stomp, pause and
-energy-orb actions. They become visible when a touchscreen/mobile platform is
-detected.
-
-## Classic 8-bit features
-
-- **Coins**: gold coins in rows and arcs; collect them for score.
-- **Question blocks**: bump from below to pop a coin (or a power mushroom).
-- **Bricks**: bump when small; smash them after growing.
-- **Power mushroom**: grow big, take one extra hit, and break bricks.
-- **Pipes**: green pipes as obstacles and platforms.
-- **Flagpole**: finish the overworld level at the flag.
-- **Coppercaps**: original stompable mushroom-like walkers with brief hops.
-- **Pipe cacti**: static exposed hazards and fixed-cycle retracting variants;
-  the outer pipe rim remains safe to stand on.
-- **Overworld look**: blue sky, clouds, rolling hills, bushes and a distant
-  castle, with a classic SCORE / COINS / TIME / WORLD HUD.
-- Original hero, enemies and boss — no third-party or Nintendo assets.
-- Callback-driven player states with one air jump, wall slide and wall jump.
-- Shader-driven gear wipe for level changes and checkpoint reloads.
-
-## 32-stage campaign
-
-The main campaign contains eight worlds with four stages each. Stages 1–3 use
-long scrolling routes with generated but deterministic original layouts. Each
-24-tile section uses a readable setup → reward → threat rhythm, rotating among
-four brick silhouettes and paired low/upper coin paths. Every route includes
-power blocks, Coppercap encounters, both cactus variants, checkpoints and a
-flagpole.
-Later worlds add wider pits, faster enemies, moving platforms, spikes, falling
-rocks and hidden passages. Every stage 4 is a boss stronghold: its right-hand
-energy gate remains solid during the fight, fades after the guardian is
-defeated, and opens a separate victory corridor and exit. World 8-4 ends with
-the full-campaign completion banner.
-
-The campaign deliberately recreates the progression and mechanical structure
-of a classic 8×4 platform adventure while keeping all maps, names, art and
-encounters original.
-
-## Learning the platformer feel
-
-The project recreates the *rules and feel* of a classic momentum platformer
-with original characters, art, audio and level layouts. The main tuning values
-are grouped at the top of `player/player.gd` so they can be studied safely:
-
-- `WALK_SPEED` / `RUN_SPEED`: the two horizontal speed caps.
-- `GROUND_ACCELERATION` / `RUN_ACCELERATION`: how long it takes to build speed.
-- `TURN_ACCELERATION`: the sharper skid used when reversing on the ground.
-- `AIR_ACCELERATION`: intentionally lower than ground control.
-- `RISING_GRAVITY`, `RELEASE_GRAVITY`, `FALLING_GRAVITY`: holding jump produces
-  a higher arc; releasing it early produces a short hop.
-- `RUN_JUMP_BONUS`: horizontal momentum adds height and distance to a jump.
-
-Running is unlimited. The POWER display shows the current three-step upgrade
-state, so a long run-up is never cancelled by an unrelated stamina system.
-Touch input uses frame-to-frame action edge detection, keeping jump buffering
-consistent across keyboard, controller and mobile virtual buttons.
-
-Projectile progression is `SMALL → GEAR → BOLT`: a small character receives a
-growth pickup from a power-up block, while a large character receives the
-original mechanical Energy Bloom. BOLT mode enables ground-bouncing shots,
-limits each player to two active shots, and downgrades to GEAR on damage. The
-Energy Bloom also swaps the hero's cap and coat to a distinct ice-cyan palette
-while preserving skin, goggles, outlines and the selected character tint.
-
-The goal sequence in `world/flagpole.gd` is a useful example of a scripted
-state transition: it freezes the timer, scores the grab height, drops the
-banner, slides the player down, walks them off-screen, and only then changes
-the level.
-
-The movement controller now delegates state entry and state-owned physics to
-`player/player_state_machine.gd`. The classic momentum calculations stay in
-the player, while double-jump, wall-jump, hurt and death transitions are
-published through the `GameEvents` autoload. Moving platforms and collectibles
-also publish events without depending directly on the HUD.
-
-## Save and reload
-
-`user://forest_gear_save.json` uses a versioned schema. It stores high score,
-keyboard bindings, current campaign stage, run score, coin count, carried
-power, completed stages and the active checkpoint. Checkpoints and stage goals
-save automatically; R or the pause-menu reload button reloads the complete
-scene through the gear-wipe shader and restores the saved run state. Older
-save files without a version field are migrated with safe defaults.
-
-## Settings (pause menu)
-
-Press **Escape** to open the settings menu:
-
-- **音效开关**: toggle all synthesized 8-bit sound effects.
-- **音量大小**: volume slider (0–100%).
-- **角色切换**: cycle between three original characters (GEAR / BLAZE /
-  FROST) with different tints and run/jump stats.
-- Settings are saved automatically to `user://settings.json`.
-
-All sound effects are generated procedurally at runtime (square waves and
-noise) — no audio asset files are included.
-
-## Included systems
-
-- Seven-state player FSM: Idle, Run, Jump, Fall, Attack, Hurt and Dead.
-- Health, three-step projectile power, score, coin, timer and checkpoint state.
-- Small/big player forms (grow on mushroom, shrink on hit).
-- Original Beetle Bot, Coppercap, Gearwing, Clockwork Cactus and Gearheart
-  Guardian designs.
-- Moving platforms, springs, falling rocks, spikes, fading hidden areas and
-  pooled projectiles/enemies.
-- JSON save data for high score, unlocked levels and keyboard bindings.
-- Versioned campaign saves with checkpoint, score, coins and power recovery.
-- Export presets for Windows, Linux, Android and Web.
-
-## Regression probe
-
-The campaign integrity probe instantiates every stage and validates its camera
-boundary, goal and boss/exit structure. It also defeats every guardian and
-checks all eight stage-4 transitions:
-
-```bash
 godot4 --headless --path . --script tests/campaign_probe.gd
+godot4 --headless --path . --script tests/layout_probe.gd
+godot4 --headless --path . --script tests/combat_ui_probe.gd
+godot4 --headless --path . --script tests/difficulty_probe.gd
+godot4 --headless --path . --script tests/pipe_dungeon_gamepad_probe.gd
 godot4 --headless --path . --script tests/mobility_event_probe.gd
 godot4 --headless --path . --script tests/save_probe.gd
 godot4 --headless --path . --script tests/reload_checkpoint_probe.gd
-godot4 --headless --path . --script tests/layout_probe.gd
+godot4 --headless --path . --script tests/font_probe.gd
 ```
 
-The layout probe checks all 32 stages, including unique brick/coin positions,
-distinct route signatures, pipe composition and static/retracting cactus modes.
-
-## Architecture reference
-
-The callback state-machine, Event Bus and transition-layer organization were
-studied from the MIT-licensed
-[`SlayHorizon/godot-2d-platformer-demo`](https://github.com/SlayHorizon/godot-2d-platformer-demo)
-at commit `6944ec4`. Forest Gear uses an original implementation and does not
-include that project's third-party assets. See `docs/architecture_reference.md`
-for the concept mapping.
+检查内容包括二十关结构、七名首领、三档难度差异、镜头与终点、奖励管道往返、副本镜头、手柄映射、关卡差异、坑洞安全、砖块/金币去重、双格备用花、长大动画、碎石能力、二十关选关、触控显示、弹簧、发条鸭、普通跳跃踩踏、能量弹可见性、中文字体字形、汉化文本和保存/重载。

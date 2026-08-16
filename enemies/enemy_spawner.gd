@@ -1,7 +1,7 @@
 class_name EnemySpawner
 extends Node2D
 
-@export_enum("Beetle Bot", "Coppercap", "Gearwing") var enemy_kind: int = 0
+@export_enum("甲虫机器人", "弹跳蘑菇", "齿轮飞虫", "发条鸭", "铜甲龟") var enemy_kind: int = 0
 @export var patrol_distance: float = 80.0
 @export var respawn_delay: float = 5.0
 @export var respawn_enabled: bool = true

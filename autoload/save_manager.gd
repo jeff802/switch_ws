@@ -1,10 +1,12 @@
 extends Node
 ## Versioned JSON persistence for campaign progress, checkpoints and settings.
 
-const SAVE_VERSION := 2
+const SAVE_VERSION := 5
+const CAMPAIGN_STAGE_COUNT := 20
+const LAST_CAMPAIGN_STAGE := CAMPAIGN_STAGE_COUNT - 1
 const DEFAULT_SAVE_PATH := "user://forest_gear_save.json"
 const KEYBOARD_ACTIONS := [
-	&"move_left", &"move_right", &"jump", &"run", &"attack", &"stomp", &"pause", &"reload_level",
+	&"move_left", &"move_right", &"move_down", &"jump", &"run", &"attack", &"stomp", &"pause", &"reload_level",
 ]
 
 var save_path: String = DEFAULT_SAVE_PATH
@@ -15,6 +17,7 @@ var campaign_stage: int = 0
 var run_score: int = 0
 var run_collectibles: int = 0
 var carried_power_level: int = 0
+var carried_reserve_bloom_count: int = 0
 var checkpoint_level_id: String = ""
 var checkpoint_position: Vector2 = Vector2.ZERO
 var completed_stages: Array[String] = []
@@ -44,10 +47,16 @@ func load_game() -> void:
 	if unlocked_levels.is_empty():
 		unlocked_levels.append("forest")
 	keyboard_bindings = data.get("keyboard_bindings", {})
-	campaign_stage = clampi(int(data.get("campaign_stage", 0)), 0, 31)
+	campaign_stage = clampi(int(data.get("campaign_stage", 0)), 0, LAST_CAMPAIGN_STAGE)
 	run_score = maxi(0, int(data.get("run_score", 0)))
 	run_collectibles = maxi(0, int(data.get("run_collectibles", 0)))
 	carried_power_level = clampi(int(data.get("carried_power_level", 0)), 0, 2)
+	# Version 4 used a single boolean reserve slot. Preserve it when migrating,
+	# then use a clamped two-slot count from version 5 onward.
+	if data.has("carried_reserve_bloom_count"):
+		carried_reserve_bloom_count = clampi(int(data.get("carried_reserve_bloom_count", 0)), 0, 2)
+	else:
+		carried_reserve_bloom_count = 1 if bool(data.get("carried_reserve_bloom", false)) else 0
 	checkpoint_level_id = str(data.get("checkpoint_level_id", ""))
 	var saved_position: Variant = data.get("checkpoint_position", {})
 	if saved_position is Dictionary:
@@ -72,6 +81,7 @@ func save_game() -> void:
 		"run_score": run_score,
 		"run_collectibles": run_collectibles,
 		"carried_power_level": carried_power_level,
+		"carried_reserve_bloom_count": carried_reserve_bloom_count,
 		"checkpoint_level_id": checkpoint_level_id,
 		"checkpoint_position": {
 			"x": checkpoint_position.x,
@@ -87,11 +97,18 @@ func save_game() -> void:
 	GameEvents.save_completed.emit(save_path)
 
 
-func save_run_progress(stage: int, score: int, collectible_count: int, power_level: int) -> void:
-	campaign_stage = clampi(stage, 0, 31)
+func save_run_progress(
+	stage: int,
+	score: int,
+	collectible_count: int,
+	power_level: int,
+	reserve_bloom_count: int = 0
+) -> void:
+	campaign_stage = clampi(stage, 0, LAST_CAMPAIGN_STAGE)
 	run_score = maxi(0, score)
 	run_collectibles = maxi(0, collectible_count)
 	carried_power_level = clampi(power_level, 0, 2)
+	carried_reserve_bloom_count = clampi(reserve_bloom_count, 0, 2)
 	save_game()
 
 
@@ -101,14 +118,16 @@ func save_checkpoint(
 	stage: int,
 	score: int,
 	collectible_count: int,
-	power_level: int
+	power_level: int,
+	reserve_bloom_count: int = 0
 ) -> void:
 	checkpoint_level_id = level_id
 	checkpoint_position = world_position
-	campaign_stage = clampi(stage, 0, 31)
+	campaign_stage = clampi(stage, 0, LAST_CAMPAIGN_STAGE)
 	run_score = maxi(0, score)
 	run_collectibles = maxi(0, collectible_count)
 	carried_power_level = clampi(power_level, 0, 2)
+	carried_reserve_bloom_count = clampi(reserve_bloom_count, 0, 2)
 	save_game()
 
 
@@ -123,14 +142,16 @@ func complete_stage(
 	next_stage: int,
 	score: int,
 	collectible_count: int,
-	power_level: int
+	power_level: int,
+	reserve_bloom_count: int = 0
 ) -> void:
 	if not completed_stages.has(level_id):
 		completed_stages.append(level_id)
-	campaign_stage = clampi(next_stage, 0, 31)
+	campaign_stage = clampi(next_stage, 0, LAST_CAMPAIGN_STAGE)
 	run_score = maxi(0, score)
 	run_collectibles = maxi(0, collectible_count)
 	carried_power_level = clampi(power_level, 0, 2)
+	carried_reserve_bloom_count = clampi(reserve_bloom_count, 0, 2)
 	checkpoint_level_id = ""
 	checkpoint_position = Vector2.ZERO
 	save_game()
@@ -148,6 +169,7 @@ func reset_campaign_progress() -> void:
 	run_score = 0
 	run_collectibles = 0
 	carried_power_level = 0
+	carried_reserve_bloom_count = 0
 	checkpoint_level_id = ""
 	checkpoint_position = Vector2.ZERO
 	completed_stages.clear()
@@ -190,6 +212,7 @@ func _reset_progress_defaults() -> void:
 	run_score = 0
 	run_collectibles = 0
 	carried_power_level = 0
+	carried_reserve_bloom_count = 0
 	checkpoint_level_id = ""
 	checkpoint_position = Vector2.ZERO
 	completed_stages = []
